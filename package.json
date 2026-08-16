@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "start": "vite build && node server/index.js",
+    "start": "vite build && cd backend && npm start",
     "dev": "vite",
-    "server": "node server/index.js",
+    "server": "cd backend && npm start",
     "build": "vite build",
     "lint": "vite build",
     "preview": "vite preview"

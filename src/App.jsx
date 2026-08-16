@@ -1,13 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './db/storage';
 import { apiClient } from './api/client';
-import Header from './components/mobile/Header';
-import CategoryBar from './components/mobile/CategoryBar';
-import ProductGrid from './components/mobile/ProductGrid';
-import CartDrawer from './components/mobile/CartDrawer';
-import LiveTrackingModal from './components/mobile/LiveTrackingModal';
-import OrderHistoryModal from './components/mobile/OrderHistoryModal';
-import AuthModal from './components/mobile/AuthModal';
+// Customer Mobile App has been moved to a separate Flutter application.
+// This React app now serves strictly as the Admin & Shopkeeper Web Portal.
 
 import AdminSidebar from './components/admin/AdminSidebar';
 import AdminAuthModal from './components/admin/AdminAuthModal';
@@ -22,9 +17,6 @@ import UserManager from './components/admin/UserManager';
 import { Smartphone, Monitor, ArrowRight } from 'lucide-react';
 
 export default function App() {
-  // App View State: 'mobile' | 'admin'
-  const [viewMode, setViewMode] = useState('mobile');
-  const [isPhoneFrame, setIsPhoneFrame] = useState(true);
 
   // Database / API State
   const [items, setItems] = useState([]);
@@ -36,20 +28,7 @@ export default function App() {
   const [analytics, setAnalytics] = useState({ totalSales: 0, totalOrders: 0, activeOrders: 0, lowStockCount: 0, totalUsers: 0 });
   const [apiConnected, setApiConnected] = useState(false);
 
-  // Mobile App State
-  const [activeCategory, setActiveCategory] = useState('ALL');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [cart, setCart] = useState([]);
-  const [isCartOpen, setIsCartOpen] = useState(false);
-  const [activeOrderTracking, setActiveOrderTracking] = useState(null);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isAdminAuthOpen, setIsAdminAuthOpen] = useState(false);
-  const [address, setAddress] = useState({
-    tag: 'Home',
-    address: 'B-12, Sector 14, Metro Heights',
-    timeMins: '8 mins'
-  });
 
   // Admin Tab State: 'dashboard' | 'items' | 'categories' | 'orders' | 'users' | 'drivers'
   const [adminTab, setAdminTab] = useState('dashboard');
@@ -103,22 +82,20 @@ export default function App() {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 4000); // Polling live Express REST API
+    // Disabled continuous API polling
     const unsubscribe = db.subscribe(loadData);
     return () => {
-      clearInterval(interval);
       unsubscribe();
     };
   }, []);
 
   useEffect(() => {
-    if (activeOrderTracking) {
-      const updatedOrder = orders.find(o => o.id === activeOrderTracking.id);
-      if (updatedOrder) {
-        setActiveOrderTracking(updatedOrder);
-      }
-    }
-  }, [orders]);
+    loadData();
+    const unsubscribe = db.subscribe(loadData);
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   // Auth Handlers with REST API
   const handleLogin = async (emailOrPhone, password) => {
@@ -217,35 +194,10 @@ export default function App() {
     loadData();
   };
 
-  // Order Handlers with REST API
-  const handleOrderPlaced = async ({ cart, tip, paymentMethod, customerDetails }) => {
-    const orderCustomerDetails = {
-      name: currentUser ? currentUser.name : customerDetails.name,
-      phone: currentUser ? currentUser.phone : customerDetails.phone,
-      address: currentUser ? currentUser.address : customerDetails.address
-    };
-
-    let newOrder;
-    try {
-      newOrder = await apiClient.createOrder(cart, orderCustomerDetails, tip, paymentMethod, currentUser ? currentUser.id : 'guest');
-    } catch (e) {
-      newOrder = db.createOrder(cart, orderCustomerDetails, tip, paymentMethod);
-    }
-
-    setActiveOrderTracking(newOrder);
-    loadData();
-    return newOrder;
-  };
-
   const handleUpdateOrderStatus = async (orderId, status) => {
     await apiClient.updateOrderStatus(orderId, status);
     db.updateOrderStatus(orderId, status);
     loadData();
-  };
-
-  const handleCancelOrder = (orderId) => {
-    handleUpdateOrderStatus(orderId, 'Cancelled');
-    setActiveOrderTracking(null);
   };
 
   // Driver Fleet Handlers
@@ -276,55 +228,7 @@ export default function App() {
     loadData();
   };
 
-  // Cart Operations
-  const addToCart = (product) => {
-    setCart((prev) => {
-      const existing = prev.find((item) => item.id === product.id);
-      if (existing) {
-        return prev.map((item) =>
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-        );
-      }
-      return [...prev, { ...product, quantity: 1 }];
-    });
-  };
 
-  const updateCartQuantity = (productId, newQty) => {
-    if (newQty <= 0) {
-      setCart((prev) => prev.filter((item) => item.id !== productId));
-    } else {
-      setCart((prev) =>
-        prev.map((item) =>
-          item.id === productId ? { ...item, quantity: newQty } : item
-        )
-      );
-    }
-  };
-
-  const clearCart = () => setCart([]);
-
-  const handleReorder = (orderItems) => {
-    orderItems.forEach((orderItem) => {
-      const dbProd = items.find((i) => i.id === orderItem.id);
-      if (dbProd && dbProd.stock > 0) {
-        addToCart(dbProd);
-      }
-    });
-    setIsCartOpen(true);
-  };
-
-  // Filter products
-  const filteredProducts = items.filter((item) => {
-    const matchesCategory = activeCategory === 'ALL' || item.categoryId === activeCategory;
-    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          item.categoryName.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
-
-  const cartTotalAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const cartTotalItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-
-  const activeCategoryObj = categories.find(c => c.id === activeCategory);
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col font-sans">
@@ -342,160 +246,21 @@ export default function App() {
             </div>
           </div>
 
-          {/* Mode Selector Buttons */}
-          <div className="flex items-center gap-1.5 bg-gray-800 p-1 rounded-xl border border-gray-700">
-            <button
-              onClick={() => setViewMode('mobile')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition ${
-                viewMode === 'mobile'
-                  ? 'bg-yellow-400 text-black shadow'
-                  : 'text-gray-300 hover:text-white'
-              }`}
-            >
-              <Smartphone className="w-4 h-4" />
-              <span>Customer Mobile App</span>
-            </button>
-
-            <button
-              onClick={() => setViewMode('admin')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition ${
-                viewMode === 'admin'
-                  ? 'bg-yellow-400 text-black shadow'
-                  : 'text-gray-300 hover:text-white'
-              }`}
-            >
-              <Monitor className="w-4 h-4" />
-              <span>Store Admin Panel</span>
-              {analytics.activeOrders > 0 && (
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
-              )}
-            </button>
-          </div>
-
-          {/* API Connection Badge & Mobile Frame Toggle */}
           <div className="flex items-center gap-2">
             <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
               <span>Express MongoDB API Live</span>
             </div>
-
-            {viewMode === 'mobile' && (
-              <button
-                onClick={() => setIsPhoneFrame(!isPhoneFrame)}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-xs font-semibold text-gray-300 border border-gray-700"
-              >
-                <span>{isPhoneFrame ? '🖥️ Full View' : '📱 Mobile Frame'}</span>
-              </button>
-            )}
           </div>
         </div>
       </nav>
 
       {/* Main View Area */}
-      {viewMode === 'mobile' ? (
-        <div className={`flex-1 flex justify-center py-0 sm:py-6 ${isPhoneFrame ? 'bg-gray-200' : 'bg-gray-50'}`}>
-          <div className={`w-full bg-white flex flex-col relative transition-all duration-300 ${
-            isPhoneFrame 
-              ? 'max-w-[420px] rounded-none sm:rounded-[36px] phone-mockup-shadow min-h-[840px] border-4 border-gray-800 overflow-hidden my-auto' 
-              : 'max-w-md shadow-sm min-h-screen'
-          }`}>
-            
-            {/* Customer App Content */}
-            <Header
-              searchQueries={searchQuery}
-              setSearchQuery={setSearchQuery}
-              cartCount={cartTotalItemsCount}
-              openCart={() => setIsCartOpen(true)}
-              openHistory={() => setIsHistoryOpen(true)}
-              address={address}
-              setAddress={setAddress}
-              currentUser={currentUser}
-              openAuth={() => setIsAuthOpen(true)}
-            />
-
-            <CategoryBar
-              categories={categories}
-              activeCategory={activeCategory}
-              setActiveCategory={setActiveCategory}
-            />
-
-            <div className="flex-1 pb-24">
-              <ProductGrid
-                items={filteredProducts}
-                cart={cart}
-                addToCart={addToCart}
-                updateCartQuantity={updateCartQuantity}
-                activeCategoryName={activeCategoryObj ? activeCategoryObj.name : 'All Instant Products'}
-              />
-            </div>
-
-            {/* Bottom Floating View Cart Button */}
-            {cart.length > 0 && (
-              <div className="fixed sm:absolute bottom-3 left-3 right-3 z-30 animate-slide-up">
-                <button
-                  onClick={() => setIsCartOpen(true)}
-                  className="w-full bg-green-700 hover:bg-green-800 text-white p-3.5 rounded-2xl shadow-xl shadow-green-700/30 flex items-center justify-between transition active:scale-98"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center font-bold text-sm">
-                      {cartTotalItemsCount}
-                    </div>
-                    <div className="text-left">
-                      <span className="text-xs font-extrabold uppercase tracking-wide block">₹{cartTotalAmount}</span>
-                      <span className="text-[10px] text-green-100 font-medium">View Cart & Checkout</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1 font-black text-xs uppercase bg-white/20 px-3 py-1.5 rounded-xl">
-                    <span>View Cart</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </div>
-                </button>
-              </div>
-            )}
-
-            {/* Customer Modals */}
-            <CartDrawer
-              isOpen={isCartOpen}
-              onClose={() => setIsCartOpen(false)}
-              cart={cart}
-              updateCartQuantity={updateCartQuantity}
-              clearCart={clearCart}
-              address={address}
-              onOrderPlaced={handleOrderPlaced}
-            />
-
-            <LiveTrackingModal
-              activeOrder={activeOrderTracking}
-              onClose={() => setActiveOrderTracking(null)}
-              onCancelOrder={handleCancelOrder}
-            />
-
-            <OrderHistoryModal
-              isOpen={isHistoryOpen}
-              onClose={() => setIsHistoryOpen(false)}
-              orders={orders}
-              onTrackOrder={(order) => setActiveOrderTracking(order)}
-              onReorder={handleReorder}
-            />
-
-            <AuthModal
-              isOpen={isAuthOpen}
-              onClose={() => setIsAuthOpen(false)}
-              currentUser={currentUser}
-              onLogin={handleLogin}
-              onRegister={handleRegister}
-              onLogout={handleLogout}
-            />
-
-          </div>
-        </div>
-      ) : !currentUser || currentUser.role === 'Customer' ? (
+      {!currentUser || currentUser.role === 'Customer' ? (
         /* Full-Page Login & Signup Landing for Store / Admin Portal */
         <PortalAuthPage
           onLogin={handleLogin}
           onRegister={handleRegister}
-          onSwitchToCustomer={() => setViewMode('mobile')}
         />
       ) : (
         /* Authenticated Admin / Shopkeeper Store Panel View */
@@ -505,6 +270,7 @@ export default function App() {
             setActiveTab={setAdminTab}
             onResetDb={() => db.resetToDefaults()}
             analytics={analytics}
+            orders={orders}
             currentUser={currentUser}
             openAuthModal={() => setIsAdminAuthOpen(true)}
             onLogout={handleLogout}

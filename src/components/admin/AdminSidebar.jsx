@@ -1,16 +1,23 @@
 import React from 'react';
 import { LayoutDashboard, Package, Tags, ShoppingBag, Bike, Users, RefreshCw, LogIn, LogOut, UserCheck, Store } from 'lucide-react';
 
-export default function AdminSidebar({ activeTab, setActiveTab, onResetDb, analytics, currentUser, openAuthModal, onLogout }) {
+export default function AdminSidebar({ activeTab, setActiveTab, onResetDb, analytics, orders = [], currentUser, openAuthModal, onLogout }) {
   const isAdmin = currentUser?.role === 'Admin';
   const isShopkeeper = currentUser?.role === 'Shopkeeper';
+
+  const visibleOrders = orders.filter(o => {
+    if (!isShopkeeper) return true;
+    return o.shopkeeperId === currentUser?.id || o.items?.some(i => i.shopkeeperId === currentUser?.id);
+  });
+  
+  const activeOrdersCount = visibleOrders.filter(o => !['DELIVERED', 'CANCELLED', 'REJECTED'].includes(o.status)).length;
 
   const allMenuItems = [
     { id: 'dashboard', label: isAdmin ? 'Revenue & Platform Stats' : 'Store Overview', icon: LayoutDashboard, roles: ['Admin', 'Shopkeeper'] },
     { id: 'users', label: 'User & Shopkeeper Control', icon: Users, badge: analytics?.totalUsers ? `${analytics.totalUsers} Total` : null, roles: ['Admin'] },
     { id: 'items', label: 'Add & Manage Products', icon: Package, badge: analytics?.lowStockCount ? `${analytics.lowStockCount} Low` : null, roles: ['Shopkeeper'] },
     { id: 'categories', label: 'Food Categories', icon: Tags, roles: ['Shopkeeper'] },
-    { id: 'orders', label: 'Order Fulfillment', icon: ShoppingBag, badge: analytics?.activeOrders ? `${analytics.activeOrders} Active` : null, roles: ['Shopkeeper'] },
+    { id: 'orders', label: 'Order Fulfillment', icon: ShoppingBag, badge: activeOrdersCount > 0 ? `${activeOrdersCount} Active` : null, roles: ['Shopkeeper'] },
     { id: 'drivers', label: 'Delivery Drivers', icon: Bike, roles: ['Shopkeeper'] },
   ];
 

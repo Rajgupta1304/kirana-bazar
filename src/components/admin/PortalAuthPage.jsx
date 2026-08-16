@@ -48,71 +48,75 @@ export default function PortalAuthPage({ onLogin, onRegister, onSwitchToCustomer
   };
 
   return (
-    <div className="min-h-[calc(100vh-53px)] bg-gradient-to-br from-gray-950 via-gray-900 to-black text-white flex flex-col justify-center items-center p-4 sm:p-6 relative overflow-hidden font-sans">
+    <div className="min-h-[calc(100vh-53px)] bg-[#0a0a0a] text-white flex flex-col justify-center items-center p-4 sm:p-6 relative overflow-hidden font-sans">
       
       {/* Background Decorative Glow Elements */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-yellow-500/10 rounded-full blur-3xl pointer-events-none"></div>
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+      <div className="absolute top-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-yellow-500/10 rounded-full blur-[120px] animate-pulse pointer-events-none"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] bg-amber-600/10 rounded-full blur-[120px] animate-pulse pointer-events-none" style={{ animationDelay: '2s' }}></div>
+      <div className="absolute top-[20%] right-[20%] w-[30vw] h-[30vw] bg-orange-500/10 rounded-full blur-[100px] animate-pulse pointer-events-none" style={{ animationDelay: '4s' }}></div>
 
-      <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-12 bg-gray-900/90 border border-gray-800/90 rounded-3xl shadow-2xl overflow-hidden backdrop-blur-md z-10">
+      <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-12 bg-gray-900/40 border border-white/10 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden backdrop-blur-xl z-10">
         
         {/* Left Side Banner / Info Panel */}
-        <div className="md:col-span-5 bg-gradient-to-b from-yellow-500 via-amber-500 to-amber-600 p-8 text-black flex flex-col justify-between relative overflow-hidden">
-          <div className="space-y-6 relative z-10">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-black text-yellow-400 flex items-center justify-center font-black text-2xl shadow-xl">
+        <div className="md:col-span-5 bg-gradient-to-br from-yellow-400 via-amber-500 to-amber-600 p-10 text-black flex flex-col justify-between relative overflow-hidden group">
+          {/* Subtle animated overlay */}
+          <div className="absolute inset-0 bg-black/5 group-hover:bg-transparent transition-colors duration-500 z-0"></div>
+
+          <div className="space-y-8 relative z-10">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-black text-yellow-400 flex items-center justify-center font-black text-3xl shadow-[0_10px_30px_rgba(0,0,0,0.3)] transform transition hover:scale-105">
                 🛍️
               </div>
               <div>
-                <h1 className="font-black text-2xl tracking-tight leading-none text-black">Kirana Bazar</h1>
-                <span className="text-xs font-bold text-black/80 tracking-wide uppercase">Store & Admin Portal</span>
+                <h1 className="font-black text-3xl tracking-tight leading-none text-black drop-shadow-sm">Kirana Bazar</h1>
+                <span className="text-xs font-extrabold text-black/70 tracking-widest uppercase mt-1 block">Store & Admin Portal</span>
               </div>
             </div>
 
-            <div className="space-y-3 pt-4">
-              <h2 className="text-xl font-black leading-snug">
-                Welcome to Kirana Bazar Management Portal
+            <div className="space-y-4 pt-6">
+              <h2 className="text-4xl font-black leading-tight tracking-tight">
+                Empower Your <br />
+                <span className="text-white drop-shadow-md">Retail Business</span>
               </h2>
-              <p className="text-xs font-semibold text-black/80 leading-relaxed">
-                Log in or Sign up to access custom operational dashboards tailored specifically for Store Shopkeepers and Platform Administrators.
+              <p className="text-sm font-semibold text-black/80 leading-relaxed max-w-sm">
+                Log in or Sign up to access intelligent operational dashboards tailored specifically for Store Shopkeepers and Platform Administrators.
               </p>
             </div>
 
-            <div className="space-y-2.5 pt-2">
-              <div className="flex items-center gap-2 text-xs font-bold bg-black/10 p-2.5 rounded-xl border border-black/10">
-                <Store className="w-4 h-4 text-black flex-shrink-0" />
-                <span>Shopkeepers: Add products, manage stock & delivery</span>
+            <div className="space-y-3 pt-6">
+              <div className="flex items-center gap-3 text-sm font-bold bg-white/20 p-3.5 rounded-2xl border border-white/30 backdrop-blur-sm shadow-sm transition hover:bg-white/30">
+                <div className="w-8 h-8 rounded-full bg-black/10 flex items-center justify-center">
+                  <Store className="w-4 h-4 text-black" />
+                </div>
+                <span>Manage products, stock & delivery</span>
               </div>
-              <div className="flex items-center gap-2 text-xs font-bold bg-black/10 p-2.5 rounded-xl border border-black/10">
-                <ShieldCheck className="w-4 h-4 text-black flex-shrink-0" />
-                <span>Admins: Monitor revenue & control user accounts</span>
+              <div className="flex items-center gap-3 text-sm font-bold bg-white/20 p-3.5 rounded-2xl border border-white/30 backdrop-blur-sm shadow-sm transition hover:bg-white/30">
+                <div className="w-8 h-8 rounded-full bg-black/10 flex items-center justify-center">
+                  <ShieldCheck className="w-4 h-4 text-black" />
+                </div>
+                <span>Monitor revenue & user accounts</span>
               </div>
             </div>
           </div>
 
-          <div className="pt-6 border-t border-black/15 relative z-10">
-            <button
-              type="button"
-              onClick={onSwitchToCustomer}
-              className="w-full py-2.5 px-4 bg-black hover:bg-gray-900 text-yellow-400 font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 transition shadow-lg"
-            >
-              <span>Switch to Customer Mobile App</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+          <div className="pt-8 relative z-10 mt-12">
+            <div className="w-full py-4 px-6 bg-black/50 border border-white/10 text-gray-400 font-bold text-xs rounded-2xl flex flex-col items-center justify-center gap-2 text-center">
+              <span>Customer shopping is now only available on our dedicated Mobile Application.</span>
+            </div>
           </div>
         </div>
 
         {/* Right Side Form Panel */}
-        <div className="md:col-span-7 p-6 sm:p-8 flex flex-col justify-center space-y-5">
+        <div className="md:col-span-7 p-8 sm:p-12 flex flex-col justify-center space-y-8 bg-gray-900/50 relative">
           
           {/* Header Tab Selector */}
-          <div className="space-y-2">
-            <div className="flex bg-gray-800/80 p-1.5 rounded-2xl font-bold text-xs border border-gray-700/60">
+          <div className="space-y-2 relative z-10">
+            <div className="flex bg-black/40 p-2 rounded-2xl font-bold text-sm border border-white/5 backdrop-blur-md">
               <button
                 type="button"
                 onClick={() => { setTab('login'); setErrorMsg(''); }}
-                className={`flex-1 py-2.5 rounded-xl transition flex items-center justify-center gap-2 font-extrabold ${
-                  tab === 'login' ? 'bg-yellow-400 text-black shadow-lg' : 'text-gray-400 hover:text-white'
+                className={`flex-1 py-3 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 font-extrabold ${
+                  tab === 'login' ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-black shadow-[0_5px_15px_rgba(250,204,21,0.3)]' : 'text-gray-400 hover:text-white hover:bg-white/5'
                 }`}
               >
                 <LogIn className="w-4 h-4" />
@@ -121,8 +125,8 @@ export default function PortalAuthPage({ onLogin, onRegister, onSwitchToCustomer
               <button
                 type="button"
                 onClick={() => { setTab('register'); setErrorMsg(''); }}
-                className={`flex-1 py-2.5 rounded-xl transition flex items-center justify-center gap-2 font-extrabold ${
-                  tab === 'register' ? 'bg-yellow-400 text-black shadow-lg' : 'text-gray-400 hover:text-white'
+                className={`flex-1 py-3 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 font-extrabold ${
+                  tab === 'register' ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-black shadow-[0_5px_15px_rgba(250,204,21,0.3)]' : 'text-gray-400 hover:text-white hover:bg-white/5'
                 }`}
               >
                 <UserPlus className="w-4 h-4" />
@@ -132,58 +136,64 @@ export default function PortalAuthPage({ onLogin, onRegister, onSwitchToCustomer
           </div>
 
           {errorMsg && (
-            <div className="bg-red-950/80 border border-red-800 text-red-300 p-3 rounded-2xl text-xs font-bold flex items-center gap-2">
-              <span>⚠️</span>
+            <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-4 rounded-xl text-sm font-bold flex items-center gap-3 animate-fade-in relative z-10">
+              <span className="text-xl">⚠️</span>
               <span>{errorMsg}</span>
             </div>
           )}
 
           {tab === 'login' ? (
             /* Login Form */
-            <form onSubmit={handleLoginSubmit} className="space-y-4 text-xs">
-              <div>
-                <label className="font-bold text-gray-300 block mb-1.5">Email or Phone Number</label>
+            <form onSubmit={handleLoginSubmit} className="space-y-5 text-sm relative z-10">
+              <div className="group">
+                <label className="font-bold text-gray-300 block mb-2 group-focus-within:text-yellow-400 transition-colors">Email or Phone Number</label>
                 <input
                   type="text"
                   required
-                  placeholder="shopkeeper@kiranabazar.com or admin@kiranabazar.com"
+                  placeholder="shopkeeper@kiranabazar.com"
                   value={emailOrPhone}
                   onChange={(e) => setEmailOrPhone(e.target.value)}
-                  className="w-full p-3 bg-gray-800/90 border border-gray-700 rounded-xl outline-none focus:border-yellow-400 text-white font-medium transition"
+                  className="w-full p-4 bg-black/40 border border-white/10 rounded-xl outline-none focus:border-yellow-400 focus:bg-black/60 focus:ring-1 focus:ring-yellow-400 text-white font-medium transition-all placeholder:text-gray-600"
                 />
               </div>
 
-              <div>
-                <label className="font-bold text-gray-300 block mb-1.5">Password</label>
+              <div className="group">
+                <label className="font-bold text-gray-300 block mb-2 group-focus-within:text-yellow-400 transition-colors">Password</label>
                 <input
                   type="password"
                   required
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full p-3 bg-gray-800/90 border border-gray-700 rounded-xl outline-none focus:border-yellow-400 text-white transition"
+                  className="w-full p-4 bg-black/40 border border-white/10 rounded-xl outline-none focus:border-yellow-400 focus:bg-black/60 focus:ring-1 focus:ring-yellow-400 text-white transition-all placeholder:text-gray-600"
                 />
               </div>
 
               {/* 1-Click Demo Logins */}
-              <div className="bg-gray-800/60 border border-gray-700/80 rounded-2xl p-3.5 space-y-2">
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-4 backdrop-blur-sm mt-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-black text-yellow-400 uppercase tracking-wider">⚡ 1-Click Quick Demo Login:</span>
-                  <span className="text-[10px] text-gray-400">Pre-configured accounts</span>
+                  <span className="text-xs font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-amber-500 uppercase tracking-widest flex items-center gap-2">
+                    <Sparkles className="w-3 h-3 text-yellow-400" />
+                    Quick Demo Access
+                  </span>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => {
                       onLogin('shopkeeper@kiranabazar.com', 'shop123');
                     }}
-                    className="py-2.5 px-3 bg-amber-950/80 hover:bg-amber-900 border border-amber-600/60 rounded-xl text-amber-200 font-extrabold text-xs transition text-left flex items-center justify-between"
+                    className="p-4 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl text-amber-200 font-extrabold text-sm transition-all duration-300 text-left flex items-center justify-between group hover:-translate-y-0.5"
                   >
                     <div>
-                      <span className="block font-black text-[11px] text-amber-300">🏪 Demo Shopkeeper</span>
-                      <span className="text-[10px] text-amber-400/80">Sharma Kirana Store</span>
+                      <span className="block font-black text-sm text-amber-400 flex items-center gap-1.5">
+                        <Store className="w-4 h-4" /> Shopkeeper
+                      </span>
+                      <span className="text-xs text-amber-200/70 mt-1 block font-medium">Sharma Kirana Store</span>
                     </div>
-                    <ArrowRight className="w-3.5 h-3.5 text-amber-400" />
+                    <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center group-hover:bg-amber-500/40 transition-colors">
+                      <ArrowRight className="w-4 h-4 text-amber-400" />
+                    </div>
                   </button>
 
                   <button
@@ -191,132 +201,138 @@ export default function PortalAuthPage({ onLogin, onRegister, onSwitchToCustomer
                     onClick={() => {
                       onLogin('admin@kiranabazar.com', 'admin123');
                     }}
-                    className="py-2.5 px-3 bg-purple-950/80 hover:bg-purple-900 border border-purple-600/60 rounded-xl text-purple-200 font-extrabold text-xs transition text-left flex items-center justify-between"
+                    className="p-4 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 rounded-xl text-purple-200 font-extrabold text-sm transition-all duration-300 text-left flex items-center justify-between group hover:-translate-y-0.5"
                   >
                     <div>
-                      <span className="block font-black text-[11px] text-purple-300">🛡️ Demo Platform Admin</span>
-                      <span className="text-[10px] text-purple-400/80">Dark Store Manager</span>
+                      <span className="block font-black text-sm text-purple-400 flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4" /> Admin
+                      </span>
+                      <span className="text-xs text-purple-200/70 mt-1 block font-medium">System Manager</span>
                     </div>
-                    <ArrowRight className="w-3.5 h-3.5 text-purple-400" />
+                    <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center group-hover:bg-purple-500/40 transition-colors">
+                      <ArrowRight className="w-4 h-4 text-purple-400" />
+                    </div>
                   </button>
                 </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3.5 bg-yellow-400 hover:bg-yellow-300 text-black font-black text-sm rounded-xl shadow-xl shadow-yellow-400/20 transition active:scale-98"
+                className="w-full py-4 mt-6 bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-black font-black text-base rounded-xl shadow-[0_10px_20px_rgba(250,204,21,0.2)] hover:shadow-[0_15px_30px_rgba(250,204,21,0.3)] transition-all duration-300 hover:-translate-y-1 active:scale-[0.98]"
               >
                 Sign In to Portal
               </button>
             </form>
           ) : (
             /* Register Form */
-            <form onSubmit={handleRegisterSubmit} className="space-y-3.5 text-xs">
-              <div>
-                <label className="font-bold text-gray-300 block mb-1">Choose Account Role:</label>
-                <div className="grid grid-cols-2 gap-2 p-1 bg-gray-800 rounded-xl font-extrabold text-[11px]">
+            <form onSubmit={handleRegisterSubmit} className="space-y-4 text-sm relative z-10">
+              <div className="group">
+                <label className="font-bold text-gray-300 block mb-2 transition-colors">Choose Account Role</label>
+                <div className="grid grid-cols-2 gap-3 p-1.5 bg-black/40 border border-white/5 rounded-2xl font-extrabold text-xs backdrop-blur-md">
                   <button
                     type="button"
                     onClick={() => setRegRole('Shopkeeper')}
-                    className={`py-2 rounded-lg transition ${
-                      regRole === 'Shopkeeper' ? 'bg-amber-400 text-black shadow-md' : 'text-gray-400'
+                    className={`py-3 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 ${
+                      regRole === 'Shopkeeper' ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-black shadow-[0_5px_15px_rgba(251,191,36,0.3)]' : 'text-gray-400 hover:text-white hover:bg-white/5'
                     }`}
                   >
-                    🏪 Shopkeeper (Product Seller)
+                    <Store className="w-4 h-4" /> Shopkeeper
                   </button>
                   <button
                     type="button"
                     onClick={() => setRegRole('Admin')}
-                    className={`py-2 rounded-lg transition ${
-                      regRole === 'Admin' ? 'bg-purple-400 text-black shadow-md' : 'text-gray-400'
+                    className={`py-3 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 ${
+                      regRole === 'Admin' ? 'bg-gradient-to-r from-purple-400 to-purple-500 text-black shadow-[0_5px_15px_rgba(168,85,247,0.3)]' : 'text-gray-400 hover:text-white hover:bg-white/5'
                     }`}
                   >
-                    🛡️ Store Admin
+                    <ShieldCheck className="w-4 h-4" /> Store Admin
                   </button>
                 </div>
               </div>
 
-              <div>
-                <label className="font-bold text-gray-300 block mb-1">Full Name</label>
+              <div className="group">
+                <label className="font-bold text-gray-300 block mb-2 group-focus-within:text-yellow-400 transition-colors">Full Name</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Vikram Malhotra"
                   value={regName}
                   onChange={(e) => setRegName(e.target.value)}
-                  className="w-full p-2.5 bg-gray-800 border border-gray-700 rounded-xl outline-none focus:border-yellow-400 text-white font-medium"
+                  className="w-full p-3.5 bg-black/40 border border-white/10 rounded-xl outline-none focus:border-yellow-400 focus:bg-black/60 focus:ring-1 focus:ring-yellow-400 text-white font-medium transition-all placeholder:text-gray-600"
                 />
               </div>
 
               {regRole === 'Shopkeeper' && (
-                <div className="animate-fade-in">
-                  <label className="font-bold text-amber-400 block mb-1">Shop / Business Name</label>
+                <div className="animate-fade-in group">
+                  <label className="font-bold text-amber-400 block mb-2 group-focus-within:text-amber-300 transition-colors flex items-center gap-2">
+                    <Store className="w-4 h-4" /> Shop / Business Name
+                  </label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. Malhotra General & Grocery Store"
                     value={regShopName}
                     onChange={(e) => setRegShopName(e.target.value)}
-                    className="w-full p-2.5 bg-amber-950/40 border border-amber-500/50 rounded-xl outline-none focus:border-amber-400 text-amber-200 font-bold"
+                    className="w-full p-3.5 bg-amber-500/5 border border-amber-500/30 rounded-xl outline-none focus:border-amber-400 focus:bg-amber-500/10 focus:ring-1 focus:ring-amber-400 text-amber-100 font-bold transition-all placeholder:text-amber-900/50"
                   />
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-gray-300 block mb-1">Email</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="group">
+                  <label className="font-bold text-gray-300 block mb-2 group-focus-within:text-yellow-400 transition-colors">Email</label>
                   <input
                     type="email"
                     required
                     placeholder="vikram@store.com"
                     value={regEmail}
                     onChange={(e) => setRegEmail(e.target.value)}
-                    className="w-full p-2.5 bg-gray-800 border border-gray-700 rounded-xl outline-none focus:border-yellow-400 text-white font-medium"
+                    className="w-full p-3.5 bg-black/40 border border-white/10 rounded-xl outline-none focus:border-yellow-400 focus:bg-black/60 focus:ring-1 focus:ring-yellow-400 text-white font-medium transition-all placeholder:text-gray-600"
                   />
                 </div>
 
-                <div>
-                  <label className="font-bold text-gray-300 block mb-1">Phone Number</label>
+                <div className="group">
+                  <label className="font-bold text-gray-300 block mb-2 group-focus-within:text-yellow-400 transition-colors">Phone Number</label>
                   <input
                     type="tel"
                     required
                     placeholder="+91 98000 11122"
                     value={regPhone}
                     onChange={(e) => setRegPhone(e.target.value)}
-                    className="w-full p-2.5 bg-gray-800 border border-gray-700 rounded-xl outline-none focus:border-yellow-400 text-white font-medium"
+                    className="w-full p-3.5 bg-black/40 border border-white/10 rounded-xl outline-none focus:border-yellow-400 focus:bg-black/60 focus:ring-1 focus:ring-yellow-400 text-white font-medium transition-all placeholder:text-gray-600"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="font-bold text-gray-300 block mb-1">Password</label>
+              <div className="group">
+                <label className="font-bold text-gray-300 block mb-2 group-focus-within:text-yellow-400 transition-colors">Password</label>
                 <input
                   type="password"
                   required
                   placeholder="••••••••"
                   value={regPassword}
                   onChange={(e) => setRegPassword(e.target.value)}
-                  className="w-full p-2.5 bg-gray-800 border border-gray-700 rounded-xl outline-none focus:border-yellow-400 text-white"
+                  className="w-full p-3.5 bg-black/40 border border-white/10 rounded-xl outline-none focus:border-yellow-400 focus:bg-black/60 focus:ring-1 focus:ring-yellow-400 text-white transition-all placeholder:text-gray-600"
                 />
               </div>
 
-              <div>
-                <label className="font-bold text-gray-300 block mb-1">Store / Office Address</label>
+              <div className="group">
+                <label className="font-bold text-gray-300 block mb-2 group-focus-within:text-yellow-400 transition-colors">Store / Office Address</label>
                 <input
                   type="text"
                   required
                   placeholder="Shop 10, Sector 15 Market"
                   value={regAddress}
                   onChange={(e) => setRegAddress(e.target.value)}
-                  className="w-full p-2.5 bg-gray-800 border border-gray-700 rounded-xl outline-none focus:border-yellow-400 text-white"
+                  className="w-full p-3.5 bg-black/40 border border-white/10 rounded-xl outline-none focus:border-yellow-400 focus:bg-black/60 focus:ring-1 focus:ring-yellow-400 text-white transition-all placeholder:text-gray-600"
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3 bg-yellow-400 hover:bg-yellow-300 text-black font-black text-sm rounded-xl shadow-xl shadow-yellow-400/20 transition active:scale-98"
+                className="w-full py-4 mt-6 bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-black font-black text-base rounded-xl shadow-[0_10px_20px_rgba(250,204,21,0.2)] hover:shadow-[0_15px_30px_rgba(250,204,21,0.3)] transition-all duration-300 hover:-translate-y-1 active:scale-[0.98] flex items-center justify-center gap-2"
               >
-                Register & Open {regRole} Portal
+                Register & Open {regRole} Portal <ArrowRight className="w-5 h-5" />
               </button>
             </form>
           )}
