@@ -31,6 +31,11 @@ class CartProvider with ChangeNotifier {
   }
 
   void add(Product product) {
+    if (_items.isNotEmpty && _items.first.product.storeId != product.storeId) {
+      // Must be handled by UI check before calling add
+      return;
+    }
+
     var existingIndex = _items.indexWhere((i) => i.product.id == product.id);
     if (existingIndex >= 0) {
       _items[existingIndex].quantity += 1;

@@ -524,6 +524,13 @@ class DatabaseService {
     }
   }
 
+  deleteUser(userId) {
+    let users = this.getUsers();
+    users = users.filter(u => u.id !== userId);
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+    this.notify();
+  }
+
   updateUserRole(userId, role) {
     const users = this.getUsers();
     const user = users.find(u => u.id === userId);

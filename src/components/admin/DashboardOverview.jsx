@@ -1,9 +1,9 @@
 import React from 'react';
-import { IndianRupee, ShoppingBag, AlertTriangle, Bike, TrendingUp, PackageCheck, ArrowUpRight, Store } from 'lucide-react';
+import { IndianRupee, ShoppingBag, AlertTriangle, Bike, TrendingUp, PackageCheck, ArrowUpRight, Store, Users, MapPin, CheckCircle, XCircle } from 'lucide-react';
 
 export default function DashboardOverview({ analytics, orders, items, currentUser, onNavigate }) {
-  const isShopkeeper = currentUser?.role === 'Shopkeeper';
-  const shopkeeperId = isShopkeeper ? currentUser.id : null;
+  const isShopkeeper = currentUser?.role === 'Shopkeeper' || currentUser?.role === 'Store Manager';
+  const shopkeeperId = isShopkeeper ? currentUser?.id : null;
 
   // Filter items & orders specifically for this shopkeeper if role is Shopkeeper
   const filteredItems = shopkeeperId
@@ -28,41 +28,39 @@ export default function DashboardOverview({ analytics, orders, items, currentUse
     : analytics.activeOrders;
 
   const shopLowStock = shopkeeperId ? lowStockItems.length : analytics.lowStockCount;
+  
+  const todaysOrdersCount = filteredOrders.length; 
+  const newOrdersCount = filteredOrders.filter(o => ['PLACED', 'PENDING'].includes(o.status)).length;
+  const pickingCount = filteredOrders.filter(o => ['CONFIRMED', 'PICKING', 'ACCEPTED', 'PREPARING'].includes(o.status)).length;
+  const packedCount = filteredOrders.filter(o => o.status === 'PACKED').length;
+  const readyCount = filteredOrders.filter(o => ['READY_FOR_PICKUP', 'READY'].includes(o.status)).length;
+  const completedCount = filteredOrders.filter(o => o.status === 'DELIVERED').length;
+  const outOfStockCount = filteredItems.filter(i => i.stock <= 0).length;
 
-  const kpis = [
-    {
-      title: 'Store Sales Revenue',
-      value: `₹${shopSales.toLocaleString()}`,
-      change: '+18.4% today',
-      icon: IndianRupee,
-      color: 'bg-emerald-500 text-white',
-      badgeColor: 'bg-emerald-50 text-emerald-700'
-    },
-    {
-      title: 'Store Orders Placed',
-      value: shopTotalOrders,
-      change: 'Active order queue',
-      icon: ShoppingBag,
-      color: 'bg-blue-600 text-white',
-      badgeColor: 'bg-blue-50 text-blue-700'
-    },
-    {
-      title: 'Active Live Deliveries',
-      value: shopActiveOrders,
-      change: 'Need fulfillment',
-      icon: Bike,
-      color: 'bg-yellow-500 text-black',
-      badgeColor: 'bg-yellow-50 text-yellow-800'
-    },
-    {
-      title: 'Low Stock Warnings',
-      value: shopLowStock,
-      change: 'Stock ≤ 10 units',
-      icon: AlertTriangle,
-      color: 'bg-red-500 text-white',
-      badgeColor: 'bg-red-50 text-red-700'
-    }
-  ];
+  let kpis = [];
+  if (isShopkeeper) {
+    kpis = [
+      { title: "Today's Orders", value: todaysOrdersCount, icon: ShoppingBag, color: 'bg-blue-600 text-white', badgeColor: 'bg-blue-50 text-blue-700' },
+      { title: 'New Orders', value: newOrdersCount, icon: AlertTriangle, color: 'bg-yellow-500 text-white', badgeColor: 'bg-yellow-50 text-yellow-800' },
+      { title: 'Picking', value: pickingCount, icon: PackageCheck, color: 'bg-indigo-500 text-white', badgeColor: 'bg-indigo-50 text-indigo-700' },
+      { title: 'Packed', value: packedCount, icon: PackageCheck, color: 'bg-purple-500 text-white', badgeColor: 'bg-purple-50 text-purple-700' },
+      { title: 'Ready for Pickup', value: readyCount, icon: Bike, color: 'bg-orange-500 text-white', badgeColor: 'bg-orange-50 text-orange-700' },
+      { title: 'Completed', value: completedCount, icon: CheckCircle, color: 'bg-green-500 text-white', badgeColor: 'bg-green-50 text-green-700' },
+      { title: 'Low Stock', value: shopLowStock, icon: AlertTriangle, color: 'bg-red-400 text-white', badgeColor: 'bg-red-50 text-red-700' },
+      { title: 'Out of Stock', value: outOfStockCount, icon: XCircle, color: 'bg-red-600 text-white', badgeColor: 'bg-red-50 text-red-800' },
+      { title: "Today's Sales", value: `₹${shopSales.toLocaleString()}`, icon: IndianRupee, color: 'bg-emerald-500 text-white', badgeColor: 'bg-emerald-50 text-emerald-700' }
+    ];
+  } else {
+    kpis = [
+      { title: "Orders Today", value: analytics.todaysOrders || 0, icon: ShoppingBag, color: 'bg-blue-600 text-white', badgeColor: 'bg-blue-50 text-blue-700' },
+      { title: 'Pending Orders', value: analytics.pendingOrders || 0, icon: PackageCheck, color: 'bg-orange-500 text-white', badgeColor: 'bg-orange-50 text-orange-700' },
+      { title: 'Active Stores', value: analytics.totalStores || 0, icon: Store, color: 'bg-purple-500 text-white', badgeColor: 'bg-purple-50 text-purple-700' },
+      { title: 'Active Riders', value: analytics.totalDeliveryPartners || 0, icon: Bike, color: 'bg-pink-500 text-white', badgeColor: 'bg-pink-50 text-pink-700' },
+      { title: 'Low Stock Alerts', value: analytics.lowStockCount || 0, icon: AlertTriangle, color: 'bg-yellow-500 text-white', badgeColor: 'bg-yellow-50 text-yellow-700' },
+      { title: 'Failed Deliveries', value: analytics.failedDeliveries || 0, icon: XCircle, color: 'bg-red-500 text-white', badgeColor: 'bg-red-50 text-red-700' },
+      { title: 'Refund Requests', value: analytics.refundRequests || 0, icon: AlertTriangle, color: 'bg-red-600 text-white', badgeColor: 'bg-red-50 text-red-700' },
+    ];
+  }
 
   const storeDisplayName = isShopkeeper
     ? (currentUser.shopName || `${currentUser.name}'s Kirana Store`)
@@ -75,14 +73,25 @@ export default function DashboardOverview({ analytics, orders, items, currentUse
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-black text-gray-900 tracking-tight">Store Manager Dashboard</h1>
+            <h1 className="text-2xl font-black text-gray-900 tracking-tight">
+              {isShopkeeper ? 'Store Manager Dashboard' : currentUser?.role === 'Super Admin' ? 'Super Admin Dashboard' : 'Admin Dashboard'}
+            </h1>
             {isShopkeeper && (
               <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-lg text-xs font-black flex items-center gap-1 border border-amber-200">
                 <Store className="w-3.5 h-3.5" /> Individual Store View
               </span>
             )}
+            {!isShopkeeper && (
+              <span className="px-2.5 py-1 bg-indigo-100 text-indigo-800 rounded-lg text-xs font-black flex items-center gap-1 border border-indigo-200">
+                Platform Overview
+              </span>
+            )}
           </div>
-          <p className="text-xs text-gray-500">Real-time overview of your store's inventory, sales metrics, and delivery pipeline</p>
+          <p className="text-xs text-gray-500">
+            {isShopkeeper 
+              ? "Real-time overview of your store's inventory, sales metrics, and delivery pipeline" 
+              : "Global platform metrics and quick-commerce operations"}
+          </p>
         </div>
 
         <div className="flex items-center gap-2 bg-green-50 text-green-800 border border-green-200 px-3 py-1.5 rounded-xl text-xs font-bold self-start sm:self-auto">
@@ -92,13 +101,13 @@ export default function DashboardOverview({ analytics, orders, items, currentUse
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-${isShopkeeper ? '4' : '5'} gap-4`}>
         {kpis.map((kpi, idx) => {
           const Icon = kpi.icon;
           return (
             <div key={idx} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold text-gray-500 uppercase tracking-wider">{kpi.title}</span>
+                <span className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider line-clamp-1 pr-1">{kpi.title}</span>
                 <div className={`p-2 rounded-xl ${kpi.color}`}>
                   <Icon className="w-4 h-4" />
                 </div>
@@ -106,9 +115,11 @@ export default function DashboardOverview({ analytics, orders, items, currentUse
 
               <div>
                 <h3 className="text-2xl font-black text-gray-900">{kpi.value}</h3>
-                <span className={`inline-block mt-1 text-[11px] font-bold px-2 py-0.5 rounded-md ${kpi.badgeColor}`}>
-                  {kpi.change}
-                </span>
+                {kpi.change && (
+                  <span className={`inline-block mt-1 text-[11px] font-bold px-2 py-0.5 rounded-md ${kpi.badgeColor}`}>
+                    {kpi.change}
+                  </span>
+                )}
               </div>
             </div>
           );
@@ -121,7 +132,9 @@ export default function DashboardOverview({ analytics, orders, items, currentUse
         {/* Recent Orders Table */}
         <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-gray-100 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="font-extrabold text-base text-gray-900">Your Store's Recent Orders</h3>
+            <h3 className="font-extrabold text-base text-gray-900">
+              {isShopkeeper ? "Your Store's Recent Orders" : "Platform Recent Orders"}
+            </h3>
             <button
               onClick={() => onNavigate('orders')}
               className="text-xs font-bold text-green-700 hover:text-green-800 flex items-center gap-1"

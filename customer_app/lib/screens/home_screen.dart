@@ -26,10 +26,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> loadData() async {
-    final prods = await ApiService.getProducts();
+    // Hardcoding store_1 for now until location-based store selection is implemented
+    final prods = await ApiService.getProducts(storeId: 'store_1');
     final cats = await ApiService.getCategories();
     setState(() {
-      products = prods;
+      // Only show products that are actually in the store's inventory
+      products = prods.where((p) => p.inStore).toList();
       categories = cats;
       isLoading = false;
     });
@@ -360,7 +362,32 @@ class _AddToCartButton extends StatelessWidget {
         return SizedBox(
           height: 36,
           child: OutlinedButton(
-            onPressed: () => cart.add(product),
+            onPressed: () {
+              if (cart.items.isNotEmpty && cart.items.first.product.storeId != product.storeId) {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    title: const Text('Clear cart and switch store?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                    content: const Text('Your cart contains items from another store. Do you want to discard them and add items from this store?'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: AppTheme.accent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                        onPressed: () {
+                          cart.clear();
+                          cart.add(product);
+                          Navigator.pop(ctx);
+                        }, 
+                        child: const Text('Switch Store', style: TextStyle(color: Colors.white))
+                      ),
+                    ]
+                  )
+                );
+              } else {
+                cart.add(product);
+              }
+            },
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

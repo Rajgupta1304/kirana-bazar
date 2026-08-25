@@ -17,12 +17,7 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _pages = [
-    const HomeScreen(),
-    const CartScreen(),
-    const OrdersScreen(),
-    const ProfileScreen(),
-  ];
+  // _pages are built dynamically in build() to force rebuild of OrdersScreen
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +26,12 @@ class _MainScreenState extends State<MainScreen> {
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
-        children: _pages,
+        children: [
+          const HomeScreen(),
+          const CartScreen(),
+          _currentIndex == 2 ? const OrdersScreen() : const SizedBox.shrink(),
+          const ProfileScreen(),
+        ],
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(

@@ -2,29 +2,30 @@ import React from 'react';
 import { LayoutDashboard, Package, Tags, ShoppingBag, Bike, Users, RefreshCw, LogIn, LogOut, UserCheck, Store } from 'lucide-react';
 
 export default function AdminSidebar({ activeTab, setActiveTab, onResetDb, analytics, orders = [], currentUser, openAuthModal, onLogout }) {
-  const isAdmin = currentUser?.role === 'Admin';
-  const isShopkeeper = currentUser?.role === 'Shopkeeper';
+  const isAdmin = currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin';
+  const isShopkeeper = currentUser?.role === 'Shopkeeper' || currentUser?.role === 'Store Manager';
 
   const visibleOrders = orders.filter(o => {
     if (!isShopkeeper) return true;
-    return o.shopkeeperId === currentUser?.id || o.items?.some(i => i.shopkeeperId === currentUser?.id);
+    return o.shopkeeperId === currentUser?.id || o.items?.some(i => i.shopkeeperId === currentUser?.id) || o.storeId === currentUser?.storeId;
   });
   
   const activeOrdersCount = visibleOrders.filter(o => !['DELIVERED', 'CANCELLED', 'REJECTED'].includes(o.status)).length;
 
   const allMenuItems = [
-    { id: 'dashboard', label: isAdmin ? 'Revenue & Platform Stats' : 'Store Overview', icon: LayoutDashboard, roles: ['Admin', 'Shopkeeper'] },
-    { id: 'users', label: 'User & Shopkeeper Control', icon: Users, badge: analytics?.totalUsers ? `${analytics.totalUsers} Total` : null, roles: ['Admin'] },
-    { id: 'items', label: 'Add & Manage Products', icon: Package, badge: analytics?.lowStockCount ? `${analytics.lowStockCount} Low` : null, roles: ['Shopkeeper'] },
-    { id: 'categories', label: 'Food Categories', icon: Tags, roles: ['Shopkeeper'] },
-    { id: 'orders', label: 'Order Fulfillment', icon: ShoppingBag, badge: activeOrdersCount > 0 ? `${activeOrdersCount} Active` : null, roles: ['Shopkeeper'] },
-    { id: 'drivers', label: 'Delivery Drivers', icon: Bike, roles: ['Shopkeeper'] },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['Admin', 'Super Admin', 'Shopkeeper', 'Store Manager'] },
+    { id: 'stores', label: 'Store Management', icon: Store, roles: ['Admin', 'Super Admin'] },
+    { id: 'store-managers', label: 'Store Managers', icon: UserCheck, roles: ['Admin', 'Super Admin'] },
+    { id: 'categories', label: 'Categories & Brands', icon: Tags, roles: ['Admin', 'Super Admin'] },
+    { id: 'items', label: isAdmin ? 'Master Catalog' : 'Store Inventory', icon: Package, badge: analytics?.lowStockCount ? `${analytics.lowStockCount} Low` : null, roles: ['Admin', 'Super Admin', 'Shopkeeper', 'Store Manager'] },
+    { id: 'store-inventory', label: 'Store Inventory', icon: Tags, roles: ['Admin', 'Super Admin'] },
+    { id: 'orders', label: 'Orders Management', icon: ShoppingBag, badge: activeOrdersCount > 0 ? `${activeOrdersCount} Active` : null, roles: ['Admin', 'Super Admin', 'Shopkeeper', 'Store Manager'] },
+    { id: 'drivers', label: 'Delivery Management', icon: Bike, roles: ['Admin', 'Super Admin'] },
+    { id: 'customers', label: 'Customer Management', icon: Users, badge: analytics?.totalUsers ? `${analytics.totalUsers} Total` : null, roles: ['Admin', 'Super Admin'] },
   ];
 
   const menuItems = allMenuItems.filter(item => {
-    if (isAdmin) return item.roles.includes('Admin');
-    if (isShopkeeper) return item.roles.includes('Shopkeeper');
-    return item.roles.includes('Admin') || item.roles.includes('Shopkeeper');
+    return item.roles.includes(currentUser?.role) || (isAdmin && item.roles.includes('Admin'));
   });
 
   return (
@@ -59,7 +60,7 @@ export default function AdminSidebar({ activeTab, setActiveTab, onResetDb, analy
             <div className="space-y-2">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-yellow-400 text-black font-black flex items-center justify-center text-xs shadow-sm">
-                  {currentUser.role === 'Shopkeeper' ? '🏪' : '🛡️'}
+                  {isShopkeeper ? '🏪' : '🛡️'}
                 </div>
                 <div className="overflow-hidden">
                   <h4 className="font-extrabold text-xs text-white truncate">{currentUser.name}</h4>
@@ -85,7 +86,7 @@ export default function AdminSidebar({ activeTab, setActiveTab, onResetDb, analy
             </div>
           ) : (
             <div className="space-y-2">
-              <p className="text-[11px] text-gray-300">Log in as Shopkeeper or Admin to list products & manage portal.</p>
+              <p className="text-[11px] text-gray-300">Log in as Store Manager or Admin to list products & manage portal.</p>
               <button
                 onClick={openAuthModal}
                 className="w-full py-2 px-3 bg-yellow-400 hover:bg-yellow-300 text-black font-black text-xs rounded-xl shadow transition flex items-center justify-center gap-1.5"

@@ -7,11 +7,13 @@ import { apiClient } from './api/client';
 import AdminSidebar from './components/admin/AdminSidebar';
 import AdminAuthModal from './components/admin/AdminAuthModal';
 import PortalAuthPage from './components/admin/PortalAuthPage';
+import StoreManager from './components/admin/StoreManager';
 import DashboardOverview from './components/admin/DashboardOverview';
 import ItemManager from './components/admin/ItemManager';
 import CategoryManager from './components/admin/CategoryManager';
 import OrderFulfillment from './components/admin/OrderFulfillment';
 import DriverManagement from './components/admin/DriverManagement';
+import RiderDashboard from './components/rider/RiderDashboard';
 import UserManager from './components/admin/UserManager';
 
 import { Smartphone, Monitor, ArrowRight } from 'lucide-react';
@@ -34,40 +36,42 @@ export default function App() {
   const [adminTab, setAdminTab] = useState('dashboard');
 
   // Load data from Express MongoDB REST API with fallback to local DB
-  const loadData = async () => {
+  const loadData = async (user = currentUser) => {
     try {
+      const isShopkeeper = user?.role === 'Shopkeeper';
+      const storeId = isShopkeeper ? (user?.storeId || 'store_1') : ''; 
+
       const [apiProds, apiCats, apiOrds, apiUsers, apiStats, apiDrivers] = await Promise.all([
-        apiClient.getProducts(),
+        apiClient.getProducts(storeId),
         apiClient.getCategories(),
-        apiClient.getOrders(),
+        apiClient.getOrders(storeId),
         apiClient.getUsers(),
-        apiClient.getAnalytics(),
-        apiClient.getDrivers()
+        apiClient.getAnalytics(storeId),
+        apiClient.getDrivers(storeId)
       ]);
 
-      if (apiProds && apiProds.length > 0) {
+      if (apiProds) {
         setItems(apiProds);
         setApiConnected(true);
       } else {
         setItems(db.getItems());
       }
 
-      if (apiCats && apiCats.length > 0) setCategories(apiCats);
+      if (apiCats) setCategories(apiCats);
       else setCategories(db.getCategories());
 
-      if (apiOrds && apiOrds.length > 0) setOrders(apiOrds);
+      if (apiOrds) setOrders(apiOrds);
       else setOrders(db.getOrders());
 
-      if (apiUsers && apiUsers.length > 0) setUsers(apiUsers);
+      if (apiUsers) setUsers(apiUsers);
       else setUsers(db.getUsers());
 
       if (apiStats) setAnalytics(apiStats);
       else setAnalytics(db.getAnalytics());
 
-      if (apiDrivers && apiDrivers.length > 0) setDrivers(apiDrivers);
+      if (apiDrivers) setDrivers(apiDrivers);
       else setDrivers(db.getDrivers());
 
-      setCurrentUser(db.getCurrentUser());
     } catch (e) {
       console.warn('API error, using local database:', e);
       setItems(db.getItems());
@@ -75,27 +79,19 @@ export default function App() {
       setOrders(db.getOrders());
       setDrivers(db.getDrivers());
       setUsers(db.getUsers());
-      setCurrentUser(db.getCurrentUser());
       setAnalytics(db.getAnalytics());
     }
   };
 
   useEffect(() => {
-    loadData();
-    // Disabled continuous API polling
-    const unsubscribe = db.subscribe(loadData);
-    return () => {
-      unsubscribe();
-    };
+    const user = db.getCurrentUser();
+    if (user) {
+      setCurrentUser(user);
+    }
+    loadData(user);
   }, []);
 
-  useEffect(() => {
-    loadData();
-    const unsubscribe = db.subscribe(loadData);
-    return () => {
-      unsubscribe();
-    };
-  }, []);
+
 
   // Auth Handlers with REST API
   const handleLogin = async (emailOrPhone, password) => {
@@ -108,8 +104,10 @@ export default function App() {
     if (loggedUser) {
       setCurrentUser(loggedUser);
       db.setCurrentUser(loggedUser);
-      if (loggedUser.role === 'Admin') setAdminTab('dashboard');
-      else if (loggedUser.role === 'Shopkeeper') setAdminTab('items');
+      loadData(loggedUser);
+      if (loggedUser.role === 'Admin' || loggedUser.role === 'Super Admin') setAdminTab('dashboard');
+      else if (loggedUser.role === 'Shopkeeper' || loggedUser.role === 'Store Manager') setAdminTab('items');
+      else if (loggedUser.role === 'Delivery Partner') setAdminTab('rider');
     }
     return loggedUser;
   };
@@ -124,8 +122,9 @@ export default function App() {
     if (loggedUser) {
       setCurrentUser(loggedUser);
       db.setCurrentUser(loggedUser);
-      if (loggedUser.role === 'Admin') setAdminTab('dashboard');
-      else if (loggedUser.role === 'Shopkeeper') setAdminTab('items');
+      loadData(loggedUser);
+      if (loggedUser.role === 'Admin' || loggedUser.role === 'Super Admin') setAdminTab('dashboard');
+      else if (loggedUser.role === 'Shopkeeper' || loggedUser.role === 'Store Manager') setAdminTab('items');
     }
     return loggedUser;
   };
@@ -133,6 +132,7 @@ export default function App() {
   const handleLogout = () => {
     db.logout();
     setCurrentUser(null);
+    loadData(null);
   };
 
   const handleToggleUserStatus = async (userId, status) => {
@@ -166,13 +166,19 @@ export default function App() {
   const handleAddItem = async (itemData) => {
     await apiClient.addProduct(itemData);
     db.addItem(itemData);
-    loadData();
+    loadData(currentUser);
+  };
+
+  const handleAddInventory = async (inventoryData) => {
+    await apiClient.addInventory(inventoryData);
+    loadData(currentUser);
   };
 
   const handleUpdateStock = async (id, stock) => {
-    await apiClient.updateStock(id, stock);
+    const storeId = (currentUser?.role === 'Shopkeeper' || currentUser?.role === 'Store Manager') ? currentUser.storeId : null;
+    await apiClient.updateStock(id, stock, storeId);
     db.updateStock(id, stock);
-    loadData();
+    loadData(currentUser);
   };
 
   const handleDeleteItem = async (id) => {
@@ -200,30 +206,56 @@ export default function App() {
     loadData();
   };
 
+  const handleAssignRider = async (orderId, riderId) => {
+    try {
+      await apiClient.assignRider(orderId, riderId);
+    } catch (e) {
+      console.warn('Assign rider error', e);
+      const rider = users.find(u => u.id === riderId) || drivers.find(d => d.id === riderId);
+      if (rider) {
+        db.updateOrderStatus(orderId, 'ASSIGNED_TO_RIDER', {
+          id: rider.id,
+          name: rider.name,
+          phone: rider.phone
+        });
+      }
+    }
+    loadData();
+  };
+
   // Driver Fleet Handlers
   const handleAddDriver = async (driverData) => {
+    const userData = {
+      name: driverData.name,
+      phone: driverData.phone,
+      email: `${driverData.phone.replace(/[^0-9]/g, '')}@rider.kiranabazar.com`,
+      password: 'rider123',
+      role: 'Delivery Partner',
+      status: driverData.status || 'Available',
+      vehicle: driverData.vehicle || 'EV Scooter (DL-01-AB-9999)'
+    };
     try {
-      await apiClient.addDriver(driverData);
+      await apiClient.createUser(userData);
     } catch (e) {
-      db.addDriver(driverData);
+      db.addUser(userData);
     }
     loadData();
   };
 
   const handleDeleteDriver = async (id) => {
     try {
-      await apiClient.deleteDriver(id);
+      await apiClient.deleteUser(id);
     } catch (e) {
-      db.deleteDriver(id);
+      db.deleteUser(id);
     }
     loadData();
   };
 
   const handleUpdateDriverStatus = async (id, status) => {
     try {
-      await apiClient.updateDriverStatus(id, status);
+      await apiClient.updateUserStatus(id, status);
     } catch (e) {
-      db.updateDriverStatus(id, status);
+      db.updateUserStatus(id, status);
     }
     loadData();
   };
@@ -265,16 +297,18 @@ export default function App() {
       ) : (
         /* Authenticated Admin / Shopkeeper Store Panel View */
         <div className="flex-1 flex min-h-[calc(100vh-53px)] bg-gray-50">
-          <AdminSidebar
-            activeTab={adminTab}
-            setActiveTab={setAdminTab}
-            onResetDb={() => db.resetToDefaults()}
-            analytics={analytics}
-            orders={orders}
-            currentUser={currentUser}
-            openAuthModal={() => setIsAdminAuthOpen(true)}
-            onLogout={handleLogout}
-          />
+          {currentUser.role !== 'Delivery Partner' && (
+            <AdminSidebar
+              activeTab={adminTab}
+              setActiveTab={setAdminTab}
+              onResetDb={() => db.resetToDefaults()}
+              analytics={analytics}
+              orders={orders}
+              currentUser={currentUser}
+              openAuthModal={() => setIsAdminAuthOpen(true)}
+              onLogout={handleLogout}
+            />
+          )}
 
           <main className="flex-1 p-6 overflow-y-auto max-w-7xl">
             {/* Dashboard Overview - Accessible by both Admin & Shopkeeper */}
@@ -285,15 +319,25 @@ export default function App() {
                 items={items}
                 currentUser={currentUser}
                 onNavigate={(tab) => {
-                  if (currentUser.role === 'Admin' && ['dashboard', 'users'].includes(tab)) setAdminTab(tab);
-                  else if (currentUser.role === 'Shopkeeper' && ['dashboard', 'items', 'categories', 'orders', 'drivers'].includes(tab)) setAdminTab(tab);
+                  const role = currentUser.role;
+                  if (role === 'Admin' || role === 'Super Admin') {
+                    if (['dashboard', 'customers', 'store-managers', 'stores', 'items', 'store-inventory', 'categories', 'drivers', 'orders'].includes(tab)) setAdminTab(tab);
+                  } else if (role === 'Shopkeeper' || role === 'Store Manager') {
+                    if (['dashboard', 'items', 'categories', 'orders', 'drivers'].includes(tab)) setAdminTab(tab);
+                  }
                 }}
               />
             )}
 
-            {/* Admin Exclusive View: User & Shopkeeper Control */}
-            {adminTab === 'users' && currentUser.role === 'Admin' && (
+            {/* Admin Exclusive View: Store Management */}
+            {adminTab === 'stores' && (currentUser.role === 'Admin' || currentUser.role === 'Super Admin') && (
+              <StoreManager />
+            )}
+
+            {/* Admin Exclusive View: Store Managers */}
+            {adminTab === 'store-managers' && (currentUser.role === 'Admin' || currentUser.role === 'Super Admin') && (
               <UserManager
+                type="store-managers"
                 users={users}
                 orders={orders}
                 items={items}
@@ -303,20 +347,35 @@ export default function App() {
               />
             )}
 
-            {/* Shopkeeper Operations: Product Catalog, Add Items, Stock Management */}
-            {adminTab === 'items' && currentUser.role === 'Shopkeeper' && (
+            {/* Admin Exclusive View: Customers */}
+            {adminTab === 'customers' && (currentUser.role === 'Admin' || currentUser.role === 'Super Admin') && (
+              <UserManager
+                type="customers"
+                users={users}
+                orders={orders}
+                items={items}
+                onToggleUserStatus={handleToggleUserStatus}
+                onCreateUser={handleCreateUser}
+                onUpdateUserRole={handleUpdateUserRole}
+              />
+            )}
+
+            {/* Admin & Shopkeeper Operations: Product Catalog, Add Items, Stock Management */}
+            {['items', 'store-inventory'].includes(adminTab) && ['Shopkeeper', 'Store Manager', 'Admin', 'Super Admin'].includes(currentUser.role) && (
               <ItemManager
+                viewType={adminTab}
                 items={items}
                 categories={categories}
                 onAddItem={handleAddItem}
+                onAddInventory={handleAddInventory}
                 onUpdateStock={handleUpdateStock}
                 onDeleteItem={handleDeleteItem}
                 currentUser={currentUser}
               />
             )}
 
-            {/* Shopkeeper Operations: Food Categories */}
-            {adminTab === 'categories' && currentUser.role === 'Shopkeeper' && (
+            {/* Admin & Shopkeeper Operations: Food Categories */}
+            {adminTab === 'categories' && ['Shopkeeper', 'Store Manager', 'Admin', 'Super Admin'].includes(currentUser.role) && (
               <CategoryManager
                 categories={categories}
                 items={items}
@@ -326,24 +385,35 @@ export default function App() {
               />
             )}
 
-            {/* Shopkeeper Operations: Order Fulfillment */}
-            {adminTab === 'orders' && currentUser.role === 'Shopkeeper' && (
+            {/* Order Fulfillment */}
+            {adminTab === 'orders' && ['Shopkeeper', 'Store Manager', 'Admin', 'Super Admin'].includes(currentUser.role) && (
               <OrderFulfillment
                 orders={orders}
                 onUpdateOrderStatus={handleUpdateOrderStatus}
+                onAssignRider={handleAssignRider}
                 currentUser={currentUser}
-                drivers={drivers}
+                drivers={users.filter(u => u.role === 'Delivery Partner')} 
               />
             )}
 
-            {/* Shopkeeper Operations: Delivery Drivers */}
-            {adminTab === 'drivers' && currentUser.role === 'Shopkeeper' && (
+            {/* Driver Management */}
+            {adminTab === 'drivers' && ['Shopkeeper', 'Store Manager', 'Admin', 'Super Admin'].includes(currentUser.role) && (
               <DriverManagement
-                drivers={drivers}
+                drivers={users.filter(u => u.role === 'Delivery Partner')}
                 currentUser={currentUser}
                 onAddDriver={handleAddDriver}
                 onDeleteDriver={handleDeleteDriver}
                 onUpdateDriverStatus={handleUpdateDriverStatus}
+              />
+            )}
+
+            {/* Rider View */}
+            {currentUser.role === 'Delivery Partner' && (
+              <RiderDashboard
+                orders={orders}
+                onUpdateOrderStatus={handleUpdateOrderStatus}
+                currentUser={currentUser}
+                onLogout={handleLogout}
               />
             )}
           </main>

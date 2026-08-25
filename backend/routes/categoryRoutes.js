@@ -14,15 +14,10 @@ let memoryCategories = [
 // GET /api/categories
 router.get('/', async (req, res) => {
   try {
-    const { shopkeeperId } = req.query;
     if (isMongoConnected) {
-      const query = shopkeeperId ? { $or: [{ shopkeeperId }, { shopkeeperId: '' }, { shopkeeperId: { $exists: false } }] } : {};
-      const categories = await Category.find(query);
+      const categories = await Category.find();
       res.json(categories);
     } else {
-      if (shopkeeperId) {
-        return res.json(memoryCategories.filter(c => !c.shopkeeperId || c.shopkeeperId === shopkeeperId));
-      }
       res.json(memoryCategories);
     }
   } catch (err) {
@@ -33,15 +28,14 @@ router.get('/', async (req, res) => {
 // POST /api/categories
 router.post('/', async (req, res) => {
   try {
-    const { name, icon, shopkeeperId } = req.body;
+    const { name, icon } = req.body;
     if (!name) return res.status(400).json({ error: 'Name is required' });
 
     const newCat = {
       id: 'cat_' + Date.now(),
       name,
       icon: icon || '🛍️',
-      color: 'bg-emerald-50 text-emerald-700',
-      shopkeeperId: shopkeeperId || ''
+      color: 'bg-emerald-50 text-emerald-700'
     };
 
     if (isMongoConnected) {

@@ -168,7 +168,7 @@ class CartScreen extends StatelessWidget {
               'name': i.product.name,
               'price': i.product.price,
               'quantity': i.quantity,
-              'shopkeeperId': i.product.shopkeeperId // Fixed mapping
+              'storeId': i.product.storeId // Changed to storeId as per new architecture
             }).toList();
 
             final order = await ApiService.placeOrder(orderItems, cart.currentUser!, 0, 'UPI');

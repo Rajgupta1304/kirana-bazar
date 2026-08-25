@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Store, ShieldCheck, LogIn, UserPlus, Sparkles, Building2, User, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 export default function PortalAuthPage({ onLogin, onRegister, onSwitchToCustomer }) {
@@ -15,9 +15,20 @@ export default function PortalAuthPage({ onLogin, onRegister, onSwitchToCustomer
   const [regPassword, setRegPassword] = useState('');
   const [regRole, setRegRole] = useState('Shopkeeper'); // 'Shopkeeper' | 'Admin'
   const [regShopName, setRegShopName] = useState('');
+  const [regStoreId, setRegStoreId] = useState('');
   const [regAddress, setRegAddress] = useState('');
-
+  
+  const [availableStores, setAvailableStores] = useState([]);
   const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    if (tab === 'register' && regRole === 'Shopkeeper' && availableStores.length === 0) {
+      fetch('http://localhost:5000/api/auth/stores')
+        .then(res => res.json())
+        .then(data => setAvailableStores(data || []))
+        .catch(err => console.error('Failed to fetch stores', err));
+    }
+  }, [tab, regRole]);
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
@@ -40,6 +51,7 @@ export default function PortalAuthPage({ onLogin, onRegister, onSwitchToCustomer
         password: regPassword,
         role: regRole,
         shopName: regRole === 'Shopkeeper' ? regShopName : '',
+        storeId: regRole === 'Shopkeeper' ? regStoreId : undefined,
         address: regAddress || 'Shop 10, Main Market'
       });
     } catch (err) {
@@ -265,16 +277,47 @@ export default function PortalAuthPage({ onLogin, onRegister, onSwitchToCustomer
               {regRole === 'Shopkeeper' && (
                 <div className="animate-fade-in group">
                   <label className="font-bold text-amber-400 block mb-2 group-focus-within:text-amber-300 transition-colors flex items-center gap-2">
-                    <Store className="w-4 h-4" /> Shop / Business Name
+                    <Store className="w-4 h-4" /> Select Store Assignment
                   </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Malhotra General & Grocery Store"
-                    value={regShopName}
-                    onChange={(e) => setRegShopName(e.target.value)}
-                    className="w-full p-3.5 bg-amber-500/5 border border-amber-500/30 rounded-xl outline-none focus:border-amber-400 focus:bg-amber-500/10 focus:ring-1 focus:ring-amber-400 text-amber-100 font-bold transition-all placeholder:text-amber-900/50"
-                  />
+                  <select
+                    value={regStoreId}
+                    onChange={(e) => {
+                      setRegStoreId(e.target.value);
+                      if (e.target.value !== 'NEW') {
+                        setRegShopName('');
+                      }
+                    }}
+                    className="w-full p-3.5 bg-amber-500/5 border border-amber-500/30 rounded-xl outline-none focus:border-amber-400 focus:bg-amber-500/10 focus:ring-1 focus:ring-amber-400 text-amber-100 font-bold transition-all mb-3"
+                  >
+                    <option value="" className="text-black">-- Select a Store --</option>
+                    <option value="NEW" className="text-black font-bold">+ Create New Store</option>
+                    {availableStores.map(st => (
+                      <option key={st.id} value={st.id} className="text-black">
+                        {st.name} ({st.address?.line1 || st.address || 'No Address'})
+                      </option>
+                    ))}
+                  </select>
+
+                  {regStoreId === 'NEW' && (
+                    <div className="space-y-3 mt-3 pl-4 border-l-2 border-amber-500/30">
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Malhotra General & Grocery Store"
+                        value={regShopName}
+                        onChange={(e) => setRegShopName(e.target.value)}
+                        className="w-full p-3.5 bg-amber-500/5 border border-amber-500/30 rounded-xl outline-none focus:border-amber-400 focus:bg-amber-500/10 focus:ring-1 focus:ring-amber-400 text-amber-100 font-bold transition-all placeholder:text-amber-900/50"
+                      />
+                      <input
+                        type="text"
+                        required
+                        placeholder="Store Address (e.g. Shop 10, Sector 15)"
+                        value={regAddress}
+                        onChange={(e) => setRegAddress(e.target.value)}
+                        className="w-full p-3.5 bg-amber-500/5 border border-amber-500/30 rounded-xl outline-none focus:border-amber-400 focus:bg-amber-500/10 focus:ring-1 focus:ring-amber-400 text-amber-100 font-bold transition-all placeholder:text-amber-900/50"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -312,18 +355,6 @@ export default function PortalAuthPage({ onLogin, onRegister, onSwitchToCustomer
                   placeholder="••••••••"
                   value={regPassword}
                   onChange={(e) => setRegPassword(e.target.value)}
-                  className="w-full p-3.5 bg-black/40 border border-white/10 rounded-xl outline-none focus:border-yellow-400 focus:bg-black/60 focus:ring-1 focus:ring-yellow-400 text-white transition-all placeholder:text-gray-600"
-                />
-              </div>
-
-              <div className="group">
-                <label className="font-bold text-gray-300 block mb-2 group-focus-within:text-yellow-400 transition-colors">Store / Office Address</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Shop 10, Sector 15 Market"
-                  value={regAddress}
-                  onChange={(e) => setRegAddress(e.target.value)}
                   className="w-full p-3.5 bg-black/40 border border-white/10 rounded-xl outline-none focus:border-yellow-400 focus:bg-black/60 focus:ring-1 focus:ring-yellow-400 text-white transition-all placeholder:text-gray-600"
                 />
               </div>

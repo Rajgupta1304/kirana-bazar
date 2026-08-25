@@ -13,6 +13,7 @@ import userRoutes from './routes/userRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 import driverRoutes from './routes/driverRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
+import storeRoutes from './routes/storeRoutes.js';
 
 dotenv.config();
 
@@ -56,6 +57,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/drivers', driverRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/stores', storeRoutes);
 
 // Static Hosting for Compiled Frontend Web App (dist/)
 const distPath = path.join(__dirname, '../dist');

@@ -1,6 +1,7 @@
 import express from 'express';
 import User from '../models/User.js';
 import { isMongoConnected } from '../db/connect.js';
+import { generateToken } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
@@ -73,7 +74,46 @@ router.post('/login', async (req, res) => {
       return res.status(403).json({ error: 'Account suspended by Kirana Bazar administration.' });
     }
 
-    res.json({ message: 'Login successful', user: foundUser });
+    const token = generateToken(foundUser);
+    
+    let userResponse = foundUser.toObject ? foundUser.toObject() : { ...foundUser };
+    if (userResponse.role === 'Shopkeeper' && isMongoConnected) {
+      const StoreStaff = (await import('../models/StoreStaff.js')).default;
+      const staff = await StoreStaff.findOne({ userId: userResponse.id, status: 'ACTIVE' });
+      if (staff) {
+        userResponse.storeId = staff.storeId;
+      } else {
+        // Fallback for legacy
+        const Store = (await import('../models/Store.js')).default;
+        const store = await Store.findOne({ managerId: userResponse.id });
+        if (store) {
+          userResponse.storeId = store.id;
+          // Auto-migrate to StoreStaff
+          await StoreStaff.create({
+            id: 'staff_' + Date.now(),
+            userId: userResponse.id,
+            storeId: store.id,
+            role: 'STORE_MANAGER'
+          });
+        }
+      }
+    }
+
+    res.json({ message: 'Login successful', user: userResponse, token });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/auth/stores (For registration dropdown)
+router.get('/stores', async (req, res) => {
+  try {
+    if (isMongoConnected) {
+      const Store = (await import('../models/Store.js')).default;
+      const stores = await Store.find({ active: true }).select('id name address');
+      return res.json(stores);
+    }
+    return res.json([]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -82,22 +122,22 @@ router.post('/login', async (req, res) => {
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, phone, password, address, role, shopName } = req.body;
+    const { name, email, phone, password, address, role, shopName, storeId } = req.body;
     if (!name || !email || !phone || !password) {
       return res.status(400).json({ error: 'Name, email, phone, and password are required.' });
     }
 
     const assignedRole = (role === 'Shopkeeper' || role === 'Admin') ? role : 'Customer';
+    const userId = (assignedRole === 'Shopkeeper' ? 'shop_' : 'usr_') + Date.now();
+    
     const newUserObj = {
-      id: (assignedRole === 'Shopkeeper' ? 'shop_' : 'usr_') + Date.now(),
+      id: userId,
       name,
       email: email.toLowerCase(),
       phone,
       password,
       role: assignedRole,
       status: 'Active',
-      shopName: shopName || (assignedRole === 'Shopkeeper' ? `${name}'s Kirana Store` : ''),
-      address: address || 'B-12, Sector 14, Metro Heights',
       createdAt: new Date()
     };
 
@@ -109,14 +149,61 @@ router.post('/register', async (req, res) => {
         return res.status(400).json({ error: 'User with this email or phone already exists.' });
       }
       const created = await User.create(newUserObj);
-      return res.status(201).json({ message: 'Registration successful', user: created });
+
+      // Handle Store and StoreStaff for Shopkeeper
+      if (assignedRole === 'Shopkeeper') {
+        const StoreStaff = (await import('../models/StoreStaff.js')).default;
+        
+        let targetStoreId = storeId;
+        
+        // If creating a brand new store
+        if (!targetStoreId || targetStoreId === 'NEW') {
+          const Store = (await import('../models/Store.js')).default;
+          targetStoreId = 'store_' + Date.now();
+          await Store.create({
+            id: targetStoreId,
+            name: shopName || `${name}'s Kirana Store`,
+            managerId: userId,
+            address: {
+              line1: address || 'Shop 14, Main Market',
+              area: '',
+              city: '',
+              state: '',
+              pincode: ''
+            },
+            status: 'ACTIVE'
+          });
+        }
+        
+        // Link user to store
+        await StoreStaff.create({
+          id: 'staff_' + Date.now(),
+          userId: userId,
+          storeId: targetStoreId,
+          role: 'STORE_MANAGER'
+        });
+      }
+
+      const token = generateToken(created);
+      
+      let userResponse = created.toObject();
+      if (assignedRole === 'Shopkeeper') {
+        const StoreStaff = (await import('../models/StoreStaff.js')).default;
+        const staff = await StoreStaff.findOne({ userId: created.id, status: 'ACTIVE' });
+        if (staff) {
+          userResponse.storeId = staff.storeId;
+        }
+      }
+
+      return res.status(201).json({ message: 'Registration successful', user: userResponse, token });
     } else {
       const existing = memoryUsers.find(u => u.email.toLowerCase() === email.toLowerCase() || u.phone === phone);
       if (existing) {
         return res.status(400).json({ error: 'User with this email or phone already exists.' });
       }
       memoryUsers.push(newUserObj);
-      return res.status(201).json({ message: 'Registration successful', user: newUserObj });
+      const token = generateToken(newUserObj);
+      return res.status(201).json({ message: 'Registration successful', user: newUserObj, token });
     }
   } catch (err) {
     res.status(500).json({ error: err.message });

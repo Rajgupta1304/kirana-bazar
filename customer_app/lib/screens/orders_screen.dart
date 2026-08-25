@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../cart_provider.dart';
 import '../api_service.dart';
 import '../models.dart';
 import '../theme.dart';
@@ -17,15 +19,46 @@ class _OrdersScreenState extends State<OrdersScreen> {
   @override
   void initState() {
     super.initState();
-    loadOrders();
+  }
+
+  User? _lastUser;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final user = context.watch<CartProvider>().currentUser;
+    // Reload orders if the logged-in user changes (or logs in/out)
+    if (_lastUser?.id != user?.id) {
+      _lastUser = user;
+      // Use Future.microtask to avoid calling setState during build phase from didChangeDependencies
+      Future.microtask(() {
+        if (mounted) {
+          loadOrders();
+        }
+      });
+    }
   }
 
   Future<void> loadOrders() async {
-    final fetched = await ApiService.getOrders();
-    setState(() {
-      orders = fetched;
-      isLoading = false;
-    });
+    if (!mounted) return;
+    final user = context.read<CartProvider>().currentUser;
+    if (user != null) {
+      setState(() => isLoading = true);
+      final fetched = await ApiService.getOrders(userId: user.id);
+      if (mounted) {
+        setState(() {
+          orders = fetched;
+          isLoading = false;
+        });
+      }
+    } else {
+      if (mounted) {
+        setState(() {
+          orders = [];
+          isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -113,6 +146,27 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                       ),
                                       const SizedBox(height: 8),
                                       const Text('Arriving shortly. Track live status above.', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                                      if (['PLACED', 'CONFIRMED'].contains(order.status)) ...[
+                                        const SizedBox(height: 12),
+                                        Align(
+                                          alignment: Alignment.centerRight,
+                                          child: OutlinedButton(
+                                            onPressed: () async {
+                                              bool success = await ApiService.updateOrderStatus(order.id, 'CANCELLED');
+                                              if (success) {
+                                                loadOrders();
+                                              }
+                                            },
+                                            style: OutlinedButton.styleFrom(
+                                              foregroundColor: Colors.red,
+                                              side: const BorderSide(color: Colors.red),
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8)
+                                            ),
+                                            child: const Text('Cancel Order', style: TextStyle(fontWeight: FontWeight.bold)),
+                                          )
+                                        )
+                                      ]
                                     ]
                                   ],
                                 ),
@@ -128,11 +182,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   double _getProgress(String status) {
     switch (status) {
-      case 'Received': return 0.2;
-      case 'PENDING': return 0.2;
-      case 'ACCEPTED': return 0.4;
-      case 'PREPARING': return 0.6;
-      case 'READY': return 0.8;
+      case 'PLACED': return 0.1;
+      case 'CONFIRMED': return 0.2;
+      case 'PICKING': return 0.4;
+      case 'PACKED': return 0.6;
+      case 'READY_FOR_PICKUP': return 0.7;
+      case 'PICKED_UP': return 0.8;
       case 'OUT_FOR_DELIVERY': return 0.9;
       case 'DELIVERED': return 1.0;
       default: return 0.0;

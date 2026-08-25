@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users, Search, ShieldCheck, UserX, UserCheck, ShoppingBag, Store, UserPlus, Package } from 'lucide-react';
 
-export default function UserManager({ users, orders, items = [], onToggleUserStatus, onCreateUser, onUpdateUserRole }) {
+export default function UserManager({ type = 'all', users, orders, items = [], onToggleUserStatus, onCreateUser, onUpdateUserRole }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -11,16 +11,33 @@ export default function UserManager({ users, orders, items = [], onToggleUserSta
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPhone, setNewUserPhone] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
-  const [newUserRole, setNewUserRole] = useState('Shopkeeper');
+  const [newUserRole, setNewUserRole] = useState(type === 'customers' ? 'Customer' : 'Store Manager');
   const [newUserShopName, setNewUserShopName] = useState('');
+  const [newUserStoreId, setNewUserStoreId] = useState('');
   const [newUserAddress, setNewUserAddress] = useState('');
   const [formError, setFormError] = useState('');
+  const [availableStores, setAvailableStores] = useState([]);
+
+  useEffect(() => {
+    if (isAddModalOpen && (newUserRole === 'Shopkeeper' || newUserRole === 'Store Manager') && availableStores.length === 0) {
+      fetch('http://localhost:5000/api/auth/stores')
+        .then(res => res.json())
+        .then(data => setAvailableStores(data || []))
+        .catch(err => console.error('Failed to fetch stores', err));
+    }
+  }, [isAddModalOpen, newUserRole]);
 
   const customerCount = users.filter(u => u.role === 'Customer').length;
-  const shopkeeperCount = users.filter(u => u.role === 'Shopkeeper').length;
+  const shopkeeperCount = users.filter(u => u.role === 'Shopkeeper' || u.role === 'Store Manager').length;
   const adminCount = users.filter(u => u.role === 'Admin').length;
 
-  const filteredUsers = users.filter((u) => {
+  const relevantUsers = type === 'store-managers'
+    ? users.filter(u => u.role === 'Shopkeeper' || u.role === 'Store Manager')
+    : type === 'customers'
+    ? users.filter(u => u.role === 'Customer')
+    : users;
+
+  const filteredUsers = relevantUsers.filter((u) => {
     const matchesSearch = u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           u.phone.includes(searchTerm) ||
@@ -34,8 +51,8 @@ export default function UserManager({ users, orders, items = [], onToggleUserSta
     const totalOrders = userOrders.length;
     const totalSpent = userOrders.reduce((sum, o) => sum + o.grandTotal, 0);
 
-    // Products listed if user is Shopkeeper
-    const listedProducts = items.filter(i => i.shopkeeperId === userId || (role === 'Shopkeeper' && !i.shopkeeperId));
+    // Products listed if user is Shopkeeper or Store Manager
+    const listedProducts = items.filter(i => i.shopkeeperId === userId || ((role === 'Shopkeeper' || role === 'Store Manager') && !i.shopkeeperId));
     const productCount = listedProducts.length;
 
     return { totalOrders, totalSpent, productCount };
@@ -52,7 +69,8 @@ export default function UserManager({ users, orders, items = [], onToggleUserSta
         phone: newUserPhone,
         password: newUserPassword,
         role: newUserRole,
-        shopName: newUserRole === 'Shopkeeper' ? newUserShopName : '',
+        shopName: (newUserRole === 'Shopkeeper' || newUserRole === 'Store Manager') ? newUserShopName : '',
+        storeId: (newUserRole === 'Shopkeeper' || newUserRole === 'Store Manager') ? newUserStoreId : undefined,
         address: newUserAddress || 'Shop 10, Main Market'
       });
       setIsAddModalOpen(false);
@@ -61,6 +79,7 @@ export default function UserManager({ users, orders, items = [], onToggleUserSta
       setNewUserPhone('');
       setNewUserPassword('');
       setNewUserShopName('');
+      setNewUserStoreId('');
       setNewUserAddress('');
     } catch (err) {
       setFormError(err.message || 'Failed to create user');
@@ -73,8 +92,12 @@ export default function UserManager({ users, orders, items = [], onToggleUserSta
       {/* Header Title & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-gray-900 tracking-tight">Users & Shopkeeper Management</h1>
-          <p className="text-xs text-gray-500">Manage registered customers, shopkeeper seller accounts, and store administrators</p>
+          <h1 className="text-2xl font-black text-gray-900 tracking-tight">
+            {type === 'customers' ? 'Customer Management' : type === 'store-managers' ? 'Store Managers' : 'Users & Shopkeeper Management'}
+          </h1>
+          <p className="text-xs text-gray-500">
+            {type === 'customers' ? 'Manage registered customers and view their activity' : type === 'store-managers' ? 'Manage store administrators and their store assignments' : 'Manage all registered accounts'}
+          </p>
         </div>
 
         <button
@@ -82,7 +105,7 @@ export default function UserManager({ users, orders, items = [], onToggleUserSta
           className="px-4 py-2 bg-green-700 hover:bg-green-800 text-white rounded-xl font-extrabold text-xs shadow-lg shadow-green-700/20 flex items-center gap-2 transition"
         >
           <UserPlus className="w-4 h-4" />
-          <span>Add User / Shopkeeper</span>
+          <span>{type === 'customers' ? 'Add Customer' : type === 'store-managers' ? 'Add Store Manager' : 'Add User / Shopkeeper'}</span>
         </button>
       </div>
 
@@ -132,16 +155,18 @@ export default function UserManager({ users, orders, items = [], onToggleUserSta
           />
         </div>
 
-        <select
-          value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value)}
-          className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold outline-none focus:border-green-600"
-        >
-          <option value="ALL">All Roles ({users.length})</option>
-          <option value="Customer">Customers ({customerCount})</option>
-          <option value="Shopkeeper">Shopkeepers ({shopkeeperCount})</option>
-          <option value="Admin">Admins ({adminCount})</option>
-        </select>
+        {type === 'all' && (
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold outline-none focus:border-green-600"
+          >
+            <option value="ALL">All Roles ({users.length})</option>
+            <option value="Customer">Customers ({customerCount})</option>
+            <option value="Shopkeeper">Store Managers ({shopkeeperCount})</option>
+            <option value="Admin">Admins ({adminCount})</option>
+          </select>
+        )}
       </div>
 
       {/* Users Table */}
@@ -176,13 +201,13 @@ export default function UserManager({ users, orders, items = [], onToggleUserSta
                       <td className="p-3.5">
                         <div className="flex items-center gap-3">
                           <div className={`w-9 h-9 rounded-xl font-black flex items-center justify-center text-xs shadow-sm ${
-                            u.role === 'Shopkeeper'
+                            (u.role === 'Shopkeeper' || u.role === 'Store Manager')
                               ? 'bg-amber-400 text-black'
                               : u.role === 'Admin'
                               ? 'bg-purple-600 text-white'
                               : 'bg-yellow-400 text-black'
                           }`}>
-                            {u.role === 'Shopkeeper' ? '🏪' : u.name[0]}
+                            {(u.role === 'Shopkeeper' || u.role === 'Store Manager') ? '🏪' : u.name[0]}
                           </div>
                           <div>
                             <h4 className="font-extrabold text-gray-900">{u.name}</h4>
@@ -207,7 +232,7 @@ export default function UserManager({ users, orders, items = [], onToggleUserSta
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
                             u.role === 'Admin'
                               ? 'bg-purple-100 text-purple-800 border border-purple-200'
-                              : u.role === 'Shopkeeper'
+                              : (u.role === 'Shopkeeper' || u.role === 'Store Manager')
                               ? 'bg-amber-100 text-amber-800 border border-amber-300'
                               : 'bg-blue-100 text-blue-800'
                           }`}>
@@ -233,7 +258,7 @@ export default function UserManager({ users, orders, items = [], onToggleUserSta
                       </td>
 
                       <td className="p-3.5">
-                        {u.role === 'Shopkeeper' ? (
+                        {(u.role === 'Shopkeeper' || u.role === 'Store Manager') ? (
                           <span className="font-extrabold text-amber-800 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200 text-[11px] inline-flex items-center gap-1">
                             <Package className="w-3.5 h-3.5 text-amber-600" />
                             {stats.productCount} Products Listed
@@ -290,7 +315,9 @@ export default function UserManager({ users, orders, items = [], onToggleUserSta
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
           <div className="bg-white max-w-md w-full rounded-3xl p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="font-black text-lg text-gray-900">Add New User or Shopkeeper</h3>
+              <h3 className="font-black text-lg text-gray-900">
+                {type === 'customers' ? 'Add New Customer' : type === 'store-managers' ? 'Add Store Manager' : 'Add New User or Shopkeeper'}
+              </h3>
               <button onClick={() => setIsAddModalOpen(false)} className="text-gray-400 hover:text-gray-700 font-bold">✕</button>
             </div>
 
@@ -308,9 +335,9 @@ export default function UserManager({ users, orders, items = [], onToggleUserSta
                   onChange={(e) => setNewUserRole(e.target.value)}
                   className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl font-bold outline-none focus:border-green-600"
                 >
-                  <option value="Shopkeeper">🏪 Shopkeeper (Product Seller)</option>
-                  <option value="Customer">🛒 Customer (Buyer)</option>
-                  <option value="Admin">🛡️ Store Admin</option>
+                  {(type === 'all' || type === 'store-managers') && <option value="Store Manager">🏪 Store Manager</option>}
+                  {(type === 'all' || type === 'customers') && <option value="Customer">🛒 Customer (Buyer)</option>}
+                  {type === 'all' && <option value="Admin">🛡️ Store Admin</option>}
                 </select>
               </div>
 
@@ -326,17 +353,52 @@ export default function UserManager({ users, orders, items = [], onToggleUserSta
                 />
               </div>
 
-              {newUserRole === 'Shopkeeper' && (
-                <div>
-                  <label className="font-bold text-amber-800 block mb-1">Shop / Store Name</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Ramesh Kirana & General Store"
-                    value={newUserShopName}
-                    onChange={(e) => setNewUserShopName(e.target.value)}
-                    className="w-full p-2.5 bg-amber-50 border border-amber-200 rounded-xl outline-none focus:border-amber-600 font-bold text-amber-900"
-                  />
+              {(newUserRole === 'Shopkeeper' || newUserRole === 'Store Manager') && (
+                <div className="animate-fade-in">
+                  <label className="font-bold text-amber-800 block mb-1">Select Store Assignment</label>
+                  <select
+                    value={newUserStoreId}
+                    onChange={(e) => {
+                      setNewUserStoreId(e.target.value);
+                      if (e.target.value !== 'NEW') setNewUserShopName('');
+                    }}
+                    className="w-full p-2.5 bg-amber-50 border border-amber-200 rounded-xl outline-none focus:border-amber-600 font-bold text-amber-900 mb-2"
+                  >
+                    <option value="" className="text-black">-- Select a Store --</option>
+                    <option value="NEW" className="text-black font-bold">+ Create New Store</option>
+                    {availableStores.map(st => (
+                      <option key={st.id} value={st.id} className="text-black">
+                        {st.name} ({st.address?.line1 || st.address || 'No Address'})
+                      </option>
+                    ))}
+                  </select>
+
+                  {newUserStoreId === 'NEW' && (
+                    <div className="pl-3 border-l-2 border-amber-300 mt-2 space-y-2">
+                      <div>
+                        <label className="font-bold text-amber-800 block mb-1 text-[10px]">New Shop / Store Name</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Ramesh Kirana & General Store"
+                          value={newUserShopName}
+                          onChange={(e) => setNewUserShopName(e.target.value)}
+                          className="w-full p-2.5 bg-amber-50 border border-amber-200 rounded-xl outline-none focus:border-amber-600 font-bold text-amber-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="font-bold text-amber-800 block mb-1 text-[10px]">Store Address</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Shop 14, Main Market, Sector 15"
+                          value={newUserAddress}
+                          onChange={(e) => setNewUserAddress(e.target.value)}
+                          className="w-full p-2.5 bg-amber-50 border border-amber-200 rounded-xl outline-none focus:border-amber-600 font-bold text-amber-900"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -374,17 +436,6 @@ export default function UserManager({ users, orders, items = [], onToggleUserSta
                   placeholder="••••••••"
                   value={newUserPassword}
                   onChange={(e) => setNewUserPassword(e.target.value)}
-                  className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-gray-700 block mb-1">Address</label>
-                <input
-                  type="text"
-                  placeholder="Shop 14, Main Market, Sector 15"
-                  value={newUserAddress}
-                  onChange={(e) => setNewUserAddress(e.target.value)}
                   className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
                 />
               </div>

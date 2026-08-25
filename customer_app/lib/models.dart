@@ -8,7 +8,8 @@ class Product {
   final double mrp;
   final String image;
   final int stock;
-  final String shopkeeperId;
+  final String storeId;
+  final bool inStore;
 
   Product({
     required this.id,
@@ -20,7 +21,8 @@ class Product {
     required this.mrp,
     required this.image,
     required this.stock,
-    required this.shopkeeperId,
+    required this.storeId,
+    required this.inStore,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -34,7 +36,8 @@ class Product {
       mrp: (json['mrp'] ?? 0).toDouble(),
       image: json['image'] ?? '',
       stock: json['stock'] ?? 0,
-      shopkeeperId: json['shopkeeperId'] ?? '',
+      storeId: json['storeId'] ?? json['shopkeeperId'] ?? '',
+      inStore: json['inStore'] ?? false,
     );
   }
 }
@@ -93,7 +96,7 @@ class User {
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['id'] ?? '',
+      id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
       name: json['name'] ?? '',
       phone: json['phone'] ?? '',
       address: json['address'] ?? '',

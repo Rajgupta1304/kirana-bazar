@@ -1,6 +1,13 @@
 // Kirana Bazar relative REST API client targeting Express backend on same origin
 const API_BASE_URL = '/api';
 
+const getHeaders = () => {
+  const headers = { 'Content-Type': 'application/json' };
+  const token = localStorage.getItem('token');
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
+};
+
 export const apiClient = {
   async checkHealth() {
     try {
@@ -26,24 +33,34 @@ export const apiClient = {
   async addProduct(productData) {
     const res = await fetch(`${API_BASE_URL}/products`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify(productData)
     });
     return await res.json();
   },
 
-  async updateStock(id, stock) {
+  async addInventory(inventoryData) {
+    const res = await fetch(`${API_BASE_URL}/products/inventory`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(inventoryData)
+    });
+    return await res.json();
+  },
+
+  async updateStock(id, stock, storeId = 'store_1') {
     const res = await fetch(`${API_BASE_URL}/products/${id}/stock`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stock })
+      headers: getHeaders(),
+      body: JSON.stringify({ stock, storeId })
     });
     return await res.json();
   },
 
   async deleteProduct(id) {
     const res = await fetch(`${API_BASE_URL}/products/${id}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: getHeaders()
     });
     return await res.json();
   },
@@ -62,7 +79,7 @@ export const apiClient = {
   async addCategory(catData) {
     const res = await fetch(`${API_BASE_URL}/categories`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify(catData)
     });
     return await res.json();
@@ -70,7 +87,8 @@ export const apiClient = {
 
   async deleteCategory(id) {
     const res = await fetch(`${API_BASE_URL}/categories/${id}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: getHeaders()
     });
     return await res.json();
   },
@@ -78,7 +96,7 @@ export const apiClient = {
   async getOrders(shopkeeperId = '') {
     try {
       const url = shopkeeperId ? `${API_BASE_URL}/orders?shopkeeperId=${shopkeeperId}` : `${API_BASE_URL}/orders`;
-      const res = await fetch(url);
+      const res = await fetch(url, { headers: getHeaders() });
       if (!res.ok) throw new Error('API fetch failed');
       return await res.json();
     } catch (e) {
@@ -89,7 +107,7 @@ export const apiClient = {
   async createOrder(cartItems, customerDetails, tip = 0, paymentMethod = 'UPI', userId = 'guest') {
     const res = await fetch(`${API_BASE_URL}/orders`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify({ items: cartItems, customerDetails, tip, paymentMethod, userId })
     });
     return await res.json();
@@ -98,15 +116,24 @@ export const apiClient = {
   async updateOrderStatus(orderId, status) {
     const res = await fetch(`${API_BASE_URL}/orders/${orderId}/status`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify({ status })
+    });
+    return await res.json();
+  },
+
+  async assignRider(orderId, deliveryPartnerId) {
+    const res = await fetch(`${API_BASE_URL}/orders/${orderId}/assign`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ deliveryPartnerId })
     });
     return await res.json();
   },
 
   async getUsers() {
     try {
-      const res = await fetch(`${API_BASE_URL}/users`);
+      const res = await fetch(`${API_BASE_URL}/users`, { headers: getHeaders() });
       if (!res.ok) throw new Error('API fetch failed');
       return await res.json();
     } catch (e) {
@@ -114,10 +141,18 @@ export const apiClient = {
     }
   },
 
+  async deleteUser(userId) {
+    const res = await fetch(`${API_BASE_URL}/users/${userId}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    return await res.json();
+  },
+
   async updateUserStatus(userId, status) {
     const res = await fetch(`${API_BASE_URL}/users/${userId}/status`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify({ status })
     });
     return await res.json();
@@ -126,7 +161,7 @@ export const apiClient = {
   async updateUserRole(userId, role) {
     const res = await fetch(`${API_BASE_URL}/users/${userId}/role`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify({ role })
     });
     return await res.json();
@@ -135,7 +170,7 @@ export const apiClient = {
   async createUser(userData) {
     const res = await fetch(`${API_BASE_URL}/users`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify(userData)
     });
     const data = await res.json();
@@ -151,6 +186,7 @@ export const apiClient = {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Login failed');
+    if (data.token) localStorage.setItem('token', data.token);
     return data.user;
   },
 
@@ -162,6 +198,7 @@ export const apiClient = {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Registration failed');
+    if (data.token) localStorage.setItem('token', data.token);
     return data.user;
   },
 
@@ -201,7 +238,7 @@ export const apiClient = {
   async addDriver(driverData) {
     const res = await fetch(`${API_BASE_URL}/drivers`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify(driverData)
     });
     return await res.json();
@@ -210,7 +247,7 @@ export const apiClient = {
   async updateDriverStatus(id, status) {
     const res = await fetch(`${API_BASE_URL}/drivers/${id}/status`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify({ status })
     });
     return await res.json();
@@ -218,7 +255,8 @@ export const apiClient = {
 
   async deleteDriver(id) {
     const res = await fetch(`${API_BASE_URL}/drivers/${id}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: getHeaders()
     });
     return await res.json();
   },
@@ -226,7 +264,7 @@ export const apiClient = {
   async getAnalytics(shopkeeperId = '') {
     try {
       const url = shopkeeperId ? `${API_BASE_URL}/analytics?shopkeeperId=${shopkeeperId}` : `${API_BASE_URL}/analytics`;
-      const res = await fetch(url);
+      const res = await fetch(url, { headers: getHeaders() });
       return await res.json();
     } catch (e) {
       return null;

@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
 import { Plus, Search, Trash2, Edit3, AlertCircle, CheckCircle2, Image as ImageIcon, Store } from 'lucide-react';
 
-export default function ItemManager({ items, categories, onAddItem, onUpdateStock, onDeleteItem, currentUser }) {
+export default function ItemManager({ viewType = 'items', items, categories, onAddItem, onAddInventory, onUpdateStock, onDeleteItem, currentUser }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [stockFilter, setStockFilter] = useState('ALL');
   const [showAddModal, setShowAddModal] = useState(false);
 
-  // Form state for adding product
   const [newItem, setNewItem] = useState({
     name: '',
+    productId: '', // For Shopkeeper adding from Master
     categoryId: categories[0]?.id || '',
     categoryName: categories[0]?.name || '',
     unit: '500 g',
@@ -21,12 +21,17 @@ export default function ItemManager({ items, categories, onAddItem, onUpdateStoc
     description: ''
   });
 
-  const isShopkeeper = currentUser?.role === 'Shopkeeper';
+  const isShopkeeperRole = currentUser?.role === 'Shopkeeper' || currentUser?.role === 'Store Manager';
+  const isStoreInventoryView = viewType === 'store-inventory' || isShopkeeperRole;
+
+  const notInStoreItems = items.filter(i => !i.inStore);
 
   const filteredItems = items.filter((item) => {
-    const matchesShopkeeper = !isShopkeeper || item.shopkeeperId === currentUser.id;
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (item.shopkeeperName && item.shopkeeperName.toLowerCase().includes(searchTerm.toLowerCase()));
+    // Only show in-store items if we are in Store Inventory view
+    const matchesShopkeeper = isShopkeeperRole 
+      ? (item.shopkeeperId === currentUser?.id || item.inStore)
+      : (!isStoreInventoryView || item.price !== undefined || item.stock !== undefined || item.inStore);
+    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = categoryFilter === 'ALL' || item.categoryId === categoryFilter;
     const matchesStock = stockFilter === 'ALL' ||
       (stockFilter === 'LOW' && item.stock <= 10 && item.stock > 0) ||
@@ -38,24 +43,30 @@ export default function ItemManager({ items, categories, onAddItem, onUpdateStoc
 
   const handleAddSubmit = (e) => {
     e.preventDefault();
-    if (!newItem.name || !newItem.price) {
-      alert('Please fill out product name and price.');
-      return;
+    if (isStoreInventoryView) {
+      if (!newItem.productId || !newItem.price) {
+        alert('Please select a product and fill out the price.');
+        return;
+      }
+      onAddInventory({
+        storeId: 'store_1',
+        productId: newItem.productId,
+        price: parseFloat(newItem.price),
+        mrp: parseFloat(newItem.mrp || newItem.price),
+        stock: parseInt(newItem.stock, 10)
+      });
+    } else {
+      if (!newItem.name) {
+        alert('Please fill out product name.');
+        return;
+      }
+      const selectedCat = categories.find(c => c.id === newItem.categoryId);
+      
+      onAddItem({
+        ...newItem,
+        categoryName: selectedCat ? selectedCat.name : 'General'
+      });
     }
-    const selectedCat = categories.find(c => c.id === newItem.categoryId);
-    
-    // Tag seller info if logged in as shopkeeper/admin
-    const sellerId = currentUser ? currentUser.id : 'admin_1';
-    const sellerName = currentUser 
-      ? (currentUser.shopName || currentUser.name)
-      : 'Kirana Bazar Warehouse';
-
-    onAddItem({
-      ...newItem,
-      categoryName: selectedCat ? selectedCat.name : 'General',
-      shopkeeperId: sellerId,
-      shopkeeperName: sellerName
-    });
 
     setShowAddModal(false);
     setNewItem({
@@ -78,8 +89,12 @@ export default function ItemManager({ items, categories, onAddItem, onUpdateStoc
       {/* Header & Add Button */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-gray-900 tracking-tight">Product Catalog & Inventory</h1>
-          <p className="text-xs text-gray-500">Manage store items, update stock levels, prices, and add new products</p>
+          <h1 className="text-2xl font-black text-gray-900 tracking-tight">{isStoreInventoryView ? 'Store Inventory' : 'Master Catalog'}</h1>
+          <p className="text-xs text-gray-500">
+            {isStoreInventoryView 
+              ? 'Manage store items, update stock levels, and set store prices'
+              : 'Manage global product definitions, categories, and images'}
+          </p>
         </div>
 
         <button
@@ -139,9 +154,13 @@ export default function ItemManager({ items, categories, onAddItem, onUpdateStoc
                 <th className="p-3.5">Category</th>
                 <th className="p-3.5">Seller / Shopkeeper</th>
                 <th className="p-3.5">Unit Size</th>
-                <th className="p-3.5">Selling Price</th>
-                <th className="p-3.5">MRP</th>
-                <th className="p-3.5">Current Stock</th>
+                {isStoreInventoryView && (
+                  <>
+                    <th className="p-3.5">Selling Price</th>
+                    <th className="p-3.5">MRP</th>
+                    <th className="p-3.5">Current Stock</th>
+                  </>
+                )}
                 <th className="p-3.5 text-right">Actions</th>
               </tr>
             </thead>
@@ -177,40 +196,45 @@ export default function ItemManager({ items, categories, onAddItem, onUpdateStoc
                     <td className="p-3.5">
                       <span className="inline-flex items-center gap-1 font-bold text-[10px] text-amber-900 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
                         <Store className="w-3 h-3 text-amber-600" />
-                        {item.shopkeeperName || 'Kirana Warehouse'}
+                        {isShopkeeperRole ? (currentUser?.shopName || currentUser?.name) : (item.shopkeeperName || 'All Stores')}
                       </span>
                     </td>
 
                     <td className="p-3.5 text-gray-500">{item.unit}</td>
-                    <td className="p-3.5 font-extrabold text-gray-900">₹{item.price}</td>
-                    <td className="p-3.5 text-gray-400 line-through">₹{item.mrp || item.price}</td>
+                    
+                    {isStoreInventoryView && (
+                      <>
+                        <td className="p-3.5 font-extrabold text-gray-900">₹{item.price}</td>
+                        <td className="p-3.5 text-gray-400 line-through">₹{item.mrp || item.price}</td>
 
-                    {/* Stock Counter with inline quick edit */}
-                    <td className="p-3.5">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => onUpdateStock(item.id, Math.max(0, item.stock - 1))}
-                          className="w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold flex items-center justify-center text-xs"
-                        >
-                          -
-                        </button>
-                        <span className={`font-black text-xs px-2 py-0.5 rounded ${
-                          item.stock <= 0
-                            ? 'bg-red-100 text-red-800'
-                            : item.stock <= 10
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-green-100 text-green-800'
-                        }`}>
-                          {item.stock}
-                        </span>
-                        <button
-                          onClick={() => onUpdateStock(item.id, item.stock + 1)}
-                          className="w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold flex items-center justify-center text-xs"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </td>
+                        {/* Stock Counter with inline quick edit */}
+                        <td className="p-3.5">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => onUpdateStock(item.id, Math.max(0, item.stock - 1))}
+                              className="w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold flex items-center justify-center text-xs"
+                            >
+                              -
+                            </button>
+                            <span className={`font-black text-xs px-2 py-0.5 rounded ${
+                              item.stock <= 0
+                                ? 'bg-red-100 text-red-800'
+                                : item.stock <= 10
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-green-100 text-green-800'
+                            }`}>
+                              {item.stock}
+                            </span>
+                            <button
+                              onClick={() => onUpdateStock(item.id, item.stock + 1)}
+                              className="w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold flex items-center justify-center text-xs"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </td>
+                      </>
+                    )}
 
                     {/* Actions */}
                     <td className="p-3.5 text-right">
@@ -249,92 +273,125 @@ export default function ItemManager({ items, categories, onAddItem, onUpdateStoc
             </div>
 
             <form onSubmit={handleAddSubmit} className="space-y-3 text-xs">
-              <div>
-                <label className="font-bold text-gray-700 block mb-1">Product Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Amul Butter 100g"
-                  value={newItem.name}
-                  onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
-                  className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+              {isStoreInventoryView ? (
                 <div>
-                  <label className="font-bold text-gray-700 block mb-1">Category</label>
+                  <label className="font-bold text-gray-700 block mb-1">Select Master Product</label>
                   <select
-                    value={newItem.categoryId}
-                    onChange={(e) => setNewItem({ ...newItem, categoryId: e.target.value })}
+                    required
+                    value={newItem.productId}
+                    onChange={(e) => setNewItem({ ...newItem, productId: e.target.value })}
                     className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
                   >
-                    {categories.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
+                    {notInStoreItems.length === 0 ? (
+                      <option value="" disabled>All global products are already in your store!</option>
+                    ) : (
+                      <>
+                        <option value="">-- Choose a product to add to your store --</option>
+                        {notInStoreItems.map(p => (
+                          <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>
+                        ))}
+                      </>
+                    )}
                   </select>
                 </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="font-bold text-gray-700 block mb-1">Product Name</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Amul Butter 100g"
+                      value={newItem.name}
+                      onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
+                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
+                    />
+                  </div>
 
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-bold text-gray-700 block mb-1">Category</label>
+                      <select
+                        value={newItem.categoryId}
+                        onChange={(e) => setNewItem({ ...newItem, categoryId: e.target.value })}
+                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
+                      >
+                        {categories.map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-gray-700 block mb-1">Unit / Pack Weight</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. 500 ml or 1 kg"
+                        value={newItem.unit}
+                        onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
+                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {isStoreInventoryView ? (
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="font-bold text-gray-700 block mb-1">Price (₹)</label>
+                    <input
+                      type="number"
+                      required
+                      placeholder="45"
+                      value={newItem.price}
+                      onChange={(e) => setNewItem({ ...newItem, price: e.target.value })}
+                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-700 block mb-1">MRP (₹)</label>
+                    <input
+                      type="number"
+                      placeholder="50"
+                      value={newItem.mrp}
+                      onChange={(e) => setNewItem({ ...newItem, mrp: e.target.value })}
+                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-700 block mb-1">Initial Stock</label>
+                    <input
+                      type="number"
+                      required
+                      placeholder="30"
+                      value={newItem.stock}
+                      onChange={(e) => setNewItem({ ...newItem, stock: parseInt(e.target.value, 10) })}
+                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-blue-50 text-blue-800 text-xs p-3 rounded-lg border border-blue-200 font-medium">
+                  Note: As an Admin, you are adding to the Master Catalog. Price and Stock are managed separately by Store Managers.
+                </div>
+              )}
+
+              {!isStoreInventoryView && (
                 <div>
-                  <label className="font-bold text-gray-700 block mb-1">Unit / Pack Weight</label>
+                  <label className="font-bold text-gray-700 block mb-1">Image URL</label>
                   <input
-                    type="text"
-                    required
-                    placeholder="e.g. 500 ml or 1 kg"
-                    value={newItem.unit}
-                    onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
+                    type="url"
+                    placeholder="https://..."
+                    value={newItem.image}
+                    onChange={(e) => setNewItem({ ...newItem, image: e.target.value })}
                     className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
                   />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="font-bold text-gray-700 block mb-1">Price (₹)</label>
-                  <input
-                    type="number"
-                    required
-                    placeholder="45"
-                    value={newItem.price}
-                    onChange={(e) => setNewItem({ ...newItem, price: e.target.value })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-bold text-gray-700 block mb-1">MRP (₹)</label>
-                  <input
-                    type="number"
-                    placeholder="50"
-                    value={newItem.mrp}
-                    onChange={(e) => setNewItem({ ...newItem, mrp: e.target.value })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-bold text-gray-700 block mb-1">Initial Stock</label>
-                  <input
-                    type="number"
-                    required
-                    placeholder="30"
-                    value={newItem.stock}
-                    onChange={(e) => setNewItem({ ...newItem, stock: parseInt(e.target.value, 10) })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-gray-700 block mb-1">Image URL</label>
-                <input
-                  type="url"
-                  placeholder="https://..."
-                  value={newItem.image}
-                  onChange={(e) => setNewItem({ ...newItem, image: e.target.value })}
-                  className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
-                />
-              </div>
+              )}
 
               <div className="pt-2 flex gap-2">
                 <button
