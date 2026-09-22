@@ -249,9 +249,21 @@ export default function DashboardOverview({ analytics, orders, items, currentUse
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredItems.slice(0, 6).map((item) => {
-              const itemOrders = filteredOrders.flatMap(o => o.items || []).filter(i => i.id === item.id || i.name === item.name);
-              const totalUnitsSold = itemOrders.reduce((sum, i) => sum + (i.quantity || 1), 0);
-              const totalRevenueGenerated = totalUnitsSold * item.price;
+              const itemOrders = filteredOrders
+                .flatMap(o => o.items || [])
+                .filter(i => (i.id && i.id === item.id) || (i.productId && i.productId === item.id) || (i.name && i.name.toLowerCase() === item.name?.toLowerCase()));
+              
+              const totalUnitsSold = itemOrders.reduce((sum, i) => sum + (Number(i.quantity) || 1), 0);
+              
+              // Calculate actual revenue from order items, with fallback to item price
+              const orderRevenue = itemOrders.reduce((sum, i) => {
+                const qty = Number(i.quantity) || 1;
+                const price = Number(i.price) || Number(i.sellingPrice) || Number(item.price) || Number(item.mrp) || 0;
+                return sum + (qty * price);
+              }, 0);
+
+              const unitPrice = Number(item.price) || Number(item.sellingPrice) || Number(itemOrders[0]?.price) || Number(itemOrders[0]?.sellingPrice) || Number(item.mrp) || 0;
+              const totalRevenueGenerated = orderRevenue > 0 ? orderRevenue : (totalUnitsSold * unitPrice);
 
               return (
                 <div key={item.id} className="p-3.5 bg-gray-50/80 rounded-2xl border border-gray-200/80 flex items-center justify-between hover:bg-gray-100/80 transition">
@@ -263,14 +275,14 @@ export default function DashboardOverview({ analytics, orders, items, currentUse
                     />
                     <div className="min-w-0">
                       <h4 className="font-extrabold text-xs text-gray-900 truncate">{item.name}</h4>
-                      <span className="text-[10px] text-gray-500 block truncate">{item.categoryName} • ₹{item.price}</span>
+                      <span className="text-[10px] text-gray-500 block truncate">{item.categoryName} • ₹{unitPrice > 0 ? unitPrice : '—'}</span>
                       <span className="text-[10px] text-amber-800 font-bold">Store: {item.shopkeeperName || storeDisplayName}</span>
                     </div>
                   </div>
 
                   <div className="text-right flex-shrink-0 ml-2">
-                    <span className="font-black text-sm text-emerald-700 block">₹{totalRevenueGenerated}</span>
-                    <span className="text-[10px] text-gray-500 font-semibold">{totalUnitsSold} units sold</span>
+                    <span className="font-black text-sm text-emerald-700 block">₹{(totalRevenueGenerated || 0).toLocaleString()}</span>
+                    <span className="text-[10px] text-gray-500 font-semibold">{totalUnitsSold} unit{totalUnitsSold === 1 ? '' : 's'} sold</span>
                   </div>
                 </div>
               );

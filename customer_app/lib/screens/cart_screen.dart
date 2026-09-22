@@ -23,7 +23,17 @@ class CartScreen extends StatelessWidget {
               const SizedBox(height: 16),
               const Text('Your cart is empty', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
               const SizedBox(height: 8),
-              Text('Browse products and add them to cart', style: TextStyle(color: Colors.grey.shade600)),
+              Text('Browse fresh groceries and add them to cart', style: TextStyle(color: Colors.grey.shade600)),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () => cart.goToHome(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  foregroundColor: Colors.black87,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: const Text('Explore Products', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
             ],
           ),
         ),
@@ -157,7 +167,17 @@ class CartScreen extends StatelessWidget {
         child: ElevatedButton(
           onPressed: () async {
             if (cart.currentUser == null) {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please login from Profile tab to checkout')));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text('Please sign in to place your order'),
+                  backgroundColor: AppTheme.secondary,
+                  action: SnackBarAction(
+                    label: 'Sign In',
+                    textColor: AppTheme.primary,
+                    onPressed: () => cart.goToProfile(),
+                  ),
+                ),
+              );
               return;
             }
             
@@ -168,7 +188,7 @@ class CartScreen extends StatelessWidget {
               'name': i.product.name,
               'price': i.product.price,
               'quantity': i.quantity,
-              'storeId': i.product.storeId // Changed to storeId as per new architecture
+              'storeId': i.product.storeId.isNotEmpty ? i.product.storeId : 'store_1'
             }).toList();
 
             final order = await ApiService.placeOrder(orderItems, cart.currentUser!, 0, 'UPI');
@@ -176,32 +196,37 @@ class CartScreen extends StatelessWidget {
 
             if (order != null) {
               cart.clear();
+              cart.notifyOrderPlaced(order);
               // Show Scratch Card Coupon Dialog
               showDialog(
                 context: context,
                 builder: (BuildContext ctx) {
                   return AlertDialog(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                     backgroundColor: Colors.white,
                     contentPadding: const EdgeInsets.all(24),
                     content: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.celebration, size: 64, color: AppTheme.accent),
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(color: Colors.green.shade50, shape: BoxShape.circle),
+                          child: const Icon(Icons.check_circle_rounded, size: 54, color: AppTheme.accent),
+                        ),
                         const SizedBox(height: 16),
                         const Text('Order Placed Successfully!', 
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))
                         ),
-                        const SizedBox(height: 12),
-                        const Text('Track your delivery live in the Orders tab.', 
+                        const SizedBox(height: 8),
+                        const Text('Your dark store is packing items for 8-min dispatch.', 
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: AppTheme.textSecondary)
+                          style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 20),
                         Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.all(24),
+                          padding: const EdgeInsets.all(18),
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
                               colors: [Color(0xFFFFD700), Color(0xFFF59E0B)]
@@ -212,29 +237,50 @@ class CartScreen extends StatelessWidget {
                           child: const Column(
                             children: [
                               Text('🎉 SCRATCH & WIN 🎉', style: TextStyle(fontWeight: FontWeight.w900, color: Colors.black87)),
-                              SizedBox(height: 8),
-                              Text('You won a mystery coupon!', style: TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.bold)),
-                              SizedBox(height: 16),
+                              SizedBox(height: 6),
                               Text('FLAT50', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 2)),
-                              Text('Save ₹50 on your next order', style: TextStyle(fontSize: 10, color: Colors.black54, fontWeight: FontWeight.bold)),
+                              Text('Save ₹50 on your next order', style: TextStyle(fontSize: 11, color: Colors.black87, fontWeight: FontWeight.bold)),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 24),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            child: const Text('Awesome!'),
-                          ),
-                        )
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(color: Colors.grey.shade300),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                ),
+                                child: const Text('Close', style: TextStyle(color: Colors.black87)),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  Navigator.pop(ctx);
+                                  cart.goToOrders(); // Jump to Orders tab!
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.secondary,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                ),
+                                child: const Text('Track Live ➔', style: TextStyle(fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   );
                 }
               );
             } else {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to place order'), backgroundColor: Colors.red));
+              final errMsg = ApiService.lastOrderError ?? 'Failed to place order. Check store inventory stock.';
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errMsg), backgroundColor: Colors.red));
             }
           },
           child: Row(

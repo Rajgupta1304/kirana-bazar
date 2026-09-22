@@ -7,7 +7,134 @@ import { authMiddleware, requireShopkeeper } from '../middleware/authMiddleware.
 
 const router = express.Router();
 
-let memoryProducts = []; // Deprecated
+let memoryProducts = [
+  {
+    id: 'prod_1',
+    name: 'Amul Taaza Toned Fresh Milk',
+    categoryId: 'cat_1',
+    categoryName: 'Dairy, Bread & Egg',
+    unit: '500 ml',
+    price: 27,
+    mrp: 30,
+    stock: 43,
+    image: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=400&q=80',
+    description: 'Pasteurized toned milk packed with essentials calcium and protein.',
+    inStore: true,
+    storeId: 'store_1'
+  },
+  {
+    id: 'prod_2',
+    name: 'Harvest Gold White Bread',
+    categoryId: 'cat_1',
+    categoryName: 'Dairy, Bread & Egg',
+    unit: '400 g',
+    price: 45,
+    mrp: 50,
+    stock: 30,
+    image: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=400&q=80',
+    description: 'Soft, freshly baked white bread slices.',
+    inStore: true,
+    storeId: 'store_1'
+  },
+  {
+    id: 'prod_3',
+    name: 'Farm Fresh Organic Eggs (6 Pcs)',
+    categoryId: 'cat_1',
+    categoryName: 'Dairy, Bread & Egg',
+    unit: '6 units',
+    price: 64,
+    mrp: 75,
+    stock: 22,
+    image: 'https://images.unsplash.com/photo-1516467508483-a7212febe31a?auto=format&fit=crop&w=400&q=80',
+    description: 'Rich in protein, farm fresh brown eggs.',
+    inStore: true,
+    storeId: 'store_1'
+  },
+  {
+    id: 'prod_4',
+    name: 'Fresh Hydroponic Tomatoes',
+    categoryId: 'cat_2',
+    categoryName: 'Fruits & Vegetables',
+    unit: '500 g',
+    price: 32,
+    mrp: 40,
+    stock: 17,
+    image: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=400&q=80',
+    description: 'Juicy, plump red tomatoes directly sourced from local sustainable farms.',
+    inStore: true,
+    storeId: 'store_1'
+  },
+  {
+    id: 'prod_5',
+    name: 'Crisp Green Farm Broccoli',
+    categoryId: 'cat_2',
+    categoryName: 'Fruits & Vegetables',
+    unit: '1 pc (approx 350g)',
+    price: 79,
+    mrp: 99,
+    stock: 15,
+    image: 'https://images.unsplash.com/photo-1459411621453-7b03977f4bfc?auto=format&fit=crop&w=400&q=80',
+    description: 'Nutrient-rich fresh green broccoli head.',
+    inStore: true,
+    storeId: 'store_1'
+  },
+  {
+    id: 'prod_6',
+    name: "Lay's India's Magic Masala Chips",
+    categoryId: 'cat_3',
+    categoryName: 'Munchies & Snacks',
+    unit: '115 g',
+    price: 50,
+    mrp: 50,
+    stock: 52,
+    image: 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=400&q=80',
+    description: 'Crunchy potato chips seasoned with aromatic Indian spices.',
+    inStore: true,
+    storeId: 'store_1'
+  },
+  {
+    id: 'prod_7',
+    name: 'Doritos Nacho Cheese Tortilla',
+    categoryId: 'cat_3',
+    categoryName: 'Munchies & Snacks',
+    unit: '150 g',
+    price: 85,
+    mrp: 90,
+    stock: 39,
+    image: 'https://images.unsplash.com/photo-1528751014936-863e6e7a319c?auto=format&fit=crop&w=400&q=80',
+    description: 'Bold cheesy crunch made from real corn.',
+    inStore: true,
+    storeId: 'store_1'
+  },
+  {
+    id: 'prod_8',
+    name: 'Coca-Cola Zero Sugar Can',
+    categoryId: 'cat_4',
+    categoryName: 'Cold Drinks & Juices',
+    unit: '300 ml',
+    price: 40,
+    mrp: 40,
+    stock: 55,
+    image: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=400&q=80',
+    description: 'Chilled sparkling soft drink with zero sugar and maximum refreshment.',
+    inStore: true,
+    storeId: 'store_1'
+  },
+  {
+    id: 'prod_1787675778746',
+    name: 'Dal',
+    categoryId: 'cat_7',
+    categoryName: 'Atta, Rice & Dal',
+    unit: '500 g',
+    price: 100,
+    mrp: 120,
+    stock: 24,
+    image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80',
+    description: 'Fresh organic yellow dal.',
+    inStore: true,
+    storeId: 'store_1'
+  }
+];
 
 // GET /api/products
 router.get('/', async (req, res) => {
@@ -24,35 +151,62 @@ router.get('/', async (req, res) => {
         // Merge product data with store inventory data
         const merged = products.map(prod => {
           const inv = inventories.find(i => i.productId === prod.id);
+          const price = inv ? (inv.price || inv.sellingPrice) : (prod.price || prod.mrp || 30);
+          const mrp = inv ? (inv.mrp || prod.mrp) : (prod.mrp || price);
+          const stock = inv ? inv.stock : (prod.stock !== undefined && prod.stock !== null ? prod.stock : 25);
           
-          // Return the master product structure, augmented with store data if it exists
           return {
             id: prod.id,
             name: prod.name,
             categoryId: prod.categoryId,
             categoryName: prod.categoryName,
             unit: prod.unit,
-            price: inv ? (inv.price || inv.sellingPrice) : null,
-            mrp: inv ? (inv.mrp || prod.mrp) : prod.mrp,
-            stock: inv ? inv.stock : null,
-            rating: prod.rating,
-            deliveryTime: prod.deliveryTime,
+            price,
+            mrp,
+            stock,
+            rating: prod.rating || 4.8,
+            deliveryTime: prod.deliveryTime || '8 mins',
             image: prod.image,
-            description: prod.description,
+            description: prod.description || '',
             storeId: targetStoreId,
-            inStore: !!inv
+            inStore: true
+          };
+        });
+
+        if (merged.length > 0) {
+          return res.json(merged);
+        }
+      }
+
+      // Return master catalog augmented with inventory pricing
+      const inventories = await StoreInventory.find({ isAvailable: true });
+      const products = await Product.find().sort({ createdAt: -1 });
+
+      if (products.length > 0) {
+        const merged = products.map(prod => {
+          const inv = inventories.find(i => i.productId === prod.id);
+          const totalStock = inventories
+            .filter(i => i.productId === prod.id)
+            .reduce((sum, i) => sum + (i.stock || 0), 0);
+
+          const prodObj = prod.toObject ? prod.toObject() : prod;
+          const price = prodObj.price !== undefined && prodObj.price !== null ? prodObj.price : (inv ? (inv.price || inv.sellingPrice) : (prodObj.mrp || 30));
+          const stock = prodObj.stock !== undefined && prodObj.stock !== null ? prodObj.stock : (totalStock > 0 ? totalStock : 25);
+
+          return {
+            ...prodObj,
+            price,
+            mrp: prodObj.mrp || (inv ? inv.mrp : price),
+            stock,
+            inStore: true
           };
         });
 
         return res.json(merged);
-      } else {
-        // Return master catalog
-        const products = await Product.find().sort({ createdAt: -1 });
-        return res.json(products);
       }
-    } else {
-      res.json(memoryProducts);
     }
+
+    res.json(memoryProducts);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -62,9 +216,9 @@ router.get('/', async (req, res) => {
 // Master catalog creation
 router.post('/', async (req, res) => {
   try {
-    const { name, categoryId, categoryName, unit, mrp, image, description } = req.body;
-    if (!name || !mrp) {
-      return res.status(400).json({ error: 'Name and MRP are required.' });
+    const { name, categoryId, categoryName, unit, image, description } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'Name is required.' });
     }
 
     const newProd = {
@@ -73,10 +227,8 @@ router.post('/', async (req, res) => {
       categoryId: categoryId || 'cat_1',
       categoryName: categoryName || 'General',
       unit: unit || '500 g',
-      price: parseFloat(mrp), // default master price = mrp
-      mrp: parseFloat(mrp),
-      rating: 4.8,
-      deliveryTime: '8-10 MINS',
+      ratingAverage: 4.8,
+      ratingCount: 0,
       image: image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80',
       description: description || ''
     };

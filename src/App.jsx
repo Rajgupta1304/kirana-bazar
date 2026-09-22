@@ -5,6 +5,7 @@ import { apiClient } from './api/client';
 // This React app now serves strictly as the Admin & Shopkeeper Web Portal.
 
 import AdminSidebar from './components/admin/AdminSidebar';
+import AdminHeader from './components/admin/AdminHeader';
 import AdminAuthModal from './components/admin/AdminAuthModal';
 import PortalAuthPage from './components/admin/PortalAuthPage';
 import StoreManager from './components/admin/StoreManager';
@@ -34,6 +35,9 @@ export default function App() {
 
   // Admin Tab State: 'dashboard' | 'items' | 'categories' | 'orders' | 'users' | 'drivers'
   const [adminTab, setAdminTab] = useState('dashboard');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Load data from Express MongoDB REST API with fallback to local DB
   const loadData = async (user = currentUser) => {
@@ -164,9 +168,14 @@ export default function App() {
 
   // Product & Inventory Handlers with REST API
   const handleAddItem = async (itemData) => {
-    await apiClient.addProduct(itemData);
-    db.addItem(itemData);
-    loadData(currentUser);
+    let created;
+    try {
+      created = await apiClient.addProduct(itemData);
+    } catch (e) {
+      created = db.addItem(itemData);
+    }
+    loadData();
+    return created;
   };
 
   const handleAddInventory = async (inventoryData) => {
@@ -262,41 +271,68 @@ export default function App() {
 
 
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await loadData(currentUser);
+    setTimeout(() => setIsRefreshing(false), 500);
+  };
+
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-950 font-sans flex flex-col">
       
-      {/* Top View Switcher Header Bar */}
-      <nav className="bg-gray-900 text-white px-4 py-2.5 shadow-md border-b border-gray-800 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-yellow-400 text-black flex items-center justify-center font-black text-lg">
-              🛍️
-            </div>
-            <div>
-              <span className="font-black text-sm tracking-tight text-white block leading-none">Kirana Bazar</span>
-              <span className="text-[10px] text-gray-400">Express REST API & MongoDB Powered</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>Express MongoDB API Live</span>
-            </div>
-          </div>
-        </div>
-      </nav>
-
       {/* Main View Area */}
       {!currentUser || currentUser.role === 'Customer' ? (
         /* Full-Page Login & Signup Landing for Store / Admin Portal */
-        <PortalAuthPage
-          onLogin={handleLogin}
-          onRegister={handleRegister}
-        />
+        <div className="min-h-screen bg-slate-950 flex flex-col">
+          {/* Modern Enterprise Portal Header for Login / Guest */}
+          <header className="bg-slate-950 text-white px-6 py-3.5 border-b border-slate-800/80 sticky top-0 z-40">
+            <div className="max-w-7xl mx-auto flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-amber-500 via-amber-400 to-yellow-300 p-0.5 shadow-lg shadow-amber-500/20 flex-shrink-0">
+                  <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
+                    <svg
+                      className="w-4 h-4 text-amber-400"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
+                      <path d="M3 6h18" />
+                      <path d="M16 10a4 4 0 0 1-8 0" />
+                      <path d="m13 14-3 4h4l-2 3" className="stroke-amber-300 fill-amber-300" strokeWidth="1.5" />
+                    </svg>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-black text-sm tracking-tight text-white">Kirana</span>
+                    <span className="font-extrabold text-sm text-amber-400">Bazar</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Portal</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400">Dark Store Operations & Multi-Store Network</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-emerald-950/80 text-emerald-400 border border-emerald-800/60">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>MongoDB REST API Online</span>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          <PortalAuthPage
+            onLogin={handleLogin}
+            onRegister={handleRegister}
+          />
+        </div>
       ) : (
         /* Authenticated Admin / Shopkeeper Store Panel View */
-        <div className="flex-1 flex min-h-[calc(100vh-53px)] bg-gray-50">
+        <div className="flex h-screen bg-slate-50 overflow-hidden">
           {currentUser.role !== 'Delivery Partner' && (
             <AdminSidebar
               activeTab={adminTab}
@@ -307,125 +343,153 @@ export default function App() {
               currentUser={currentUser}
               openAuthModal={() => setIsAdminAuthOpen(true)}
               onLogout={handleLogout}
+              isCollapsed={isSidebarCollapsed}
+              isMobileOpen={isMobileSidebarOpen}
+              setIsMobileOpen={setIsMobileSidebarOpen}
             />
           )}
 
-          <main className="flex-1 p-6 overflow-y-auto max-w-7xl">
-            {/* Dashboard Overview - Accessible by both Admin & Shopkeeper */}
-            {adminTab === 'dashboard' && (
-              <DashboardOverview
+          {/* Right Main Column: Sticky Header + Scrollable Main Content */}
+          <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+            {currentUser.role !== 'Delivery Partner' && (
+              <AdminHeader
+                activeTab={adminTab}
+                setActiveTab={setAdminTab}
+                currentUser={currentUser}
+                orders={orders}
+                items={items}
                 analytics={analytics}
-                orders={orders}
-                items={items}
-                currentUser={currentUser}
-                onNavigate={(tab) => {
-                  const role = currentUser.role;
-                  if (role === 'Admin' || role === 'Super Admin') {
-                    if (['dashboard', 'customers', 'store-managers', 'stores', 'items', 'store-inventory', 'categories', 'drivers', 'orders'].includes(tab)) setAdminTab(tab);
-                  } else if (role === 'Shopkeeper' || role === 'Store Manager') {
-                    if (['dashboard', 'items', 'categories', 'orders', 'drivers'].includes(tab)) setAdminTab(tab);
-                  }
-                }}
-              />
-            )}
-
-            {/* Admin Exclusive View: Store Management */}
-            {adminTab === 'stores' && (currentUser.role === 'Admin' || currentUser.role === 'Super Admin') && (
-              <StoreManager />
-            )}
-
-            {/* Admin Exclusive View: Store Managers */}
-            {adminTab === 'store-managers' && (currentUser.role === 'Admin' || currentUser.role === 'Super Admin') && (
-              <UserManager
-                type="store-managers"
-                users={users}
-                orders={orders}
-                items={items}
-                onToggleUserStatus={handleToggleUserStatus}
-                onCreateUser={handleCreateUser}
-                onUpdateUserRole={handleUpdateUserRole}
-              />
-            )}
-
-            {/* Admin Exclusive View: Customers */}
-            {adminTab === 'customers' && (currentUser.role === 'Admin' || currentUser.role === 'Super Admin') && (
-              <UserManager
-                type="customers"
-                users={users}
-                orders={orders}
-                items={items}
-                onToggleUserStatus={handleToggleUserStatus}
-                onCreateUser={handleCreateUser}
-                onUpdateUserRole={handleUpdateUserRole}
-              />
-            )}
-
-            {/* Admin & Shopkeeper Operations: Product Catalog, Add Items, Stock Management */}
-            {['items', 'store-inventory'].includes(adminTab) && ['Shopkeeper', 'Store Manager', 'Admin', 'Super Admin'].includes(currentUser.role) && (
-              <ItemManager
-                viewType={adminTab}
-                items={items}
-                categories={categories}
-                onAddItem={handleAddItem}
-                onAddInventory={handleAddInventory}
-                onUpdateStock={handleUpdateStock}
-                onDeleteItem={handleDeleteItem}
-                currentUser={currentUser}
-              />
-            )}
-
-            {/* Admin & Shopkeeper Operations: Food Categories */}
-            {adminTab === 'categories' && ['Shopkeeper', 'Store Manager', 'Admin', 'Super Admin'].includes(currentUser.role) && (
-              <CategoryManager
-                categories={categories}
-                items={items}
-                onAddCategory={handleAddCategory}
-                onDeleteCategory={handleDeleteCategory}
-                currentUser={currentUser}
-              />
-            )}
-
-            {/* Order Fulfillment */}
-            {adminTab === 'orders' && ['Shopkeeper', 'Store Manager', 'Admin', 'Super Admin'].includes(currentUser.role) && (
-              <OrderFulfillment
-                orders={orders}
-                onUpdateOrderStatus={handleUpdateOrderStatus}
-                onAssignRider={handleAssignRider}
-                currentUser={currentUser}
-                drivers={users.filter(u => u.role === 'Delivery Partner')} 
-              />
-            )}
-
-            {/* Driver Management */}
-            {adminTab === 'drivers' && ['Shopkeeper', 'Store Manager', 'Admin', 'Super Admin'].includes(currentUser.role) && (
-              <DriverManagement
-                drivers={users.filter(u => u.role === 'Delivery Partner')}
-                currentUser={currentUser}
-                onAddDriver={handleAddDriver}
-                onDeleteDriver={handleDeleteDriver}
-                onUpdateDriverStatus={handleUpdateDriverStatus}
-              />
-            )}
-
-            {/* Rider View */}
-            {currentUser.role === 'Delivery Partner' && (
-              <RiderDashboard
-                orders={orders}
-                onUpdateOrderStatus={handleUpdateOrderStatus}
-                currentUser={currentUser}
+                apiConnected={apiConnected}
+                isSidebarCollapsed={isSidebarCollapsed}
+                setIsSidebarCollapsed={setIsSidebarCollapsed}
+                setIsMobileSidebarOpen={setIsMobileSidebarOpen}
+                onRefresh={handleRefresh}
+                isRefreshing={isRefreshing}
+                openAuthModal={() => setIsAdminAuthOpen(true)}
                 onLogout={handleLogout}
+                onResetDb={() => db.resetToDefaults()}
               />
             )}
-          </main>
 
-          <AdminAuthModal
-            isOpen={isAdminAuthOpen}
-            onClose={() => setIsAdminAuthOpen(false)}
-            currentUser={currentUser}
-            onLogin={handleLogin}
-            onRegister={handleRegister}
-            onLogout={handleLogout}
-          />
+            <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto bg-slate-50/60">
+              <div className="max-w-7xl mx-auto w-full">
+                {/* Dashboard Overview - Accessible by both Admin & Shopkeeper */}
+                {adminTab === 'dashboard' && (
+                  <DashboardOverview
+                    analytics={analytics}
+                    orders={orders}
+                    items={items}
+                    currentUser={currentUser}
+                    onNavigate={(tab) => {
+                      const role = currentUser.role;
+                      if (role === 'Admin' || role === 'Super Admin') {
+                        if (['dashboard', 'customers', 'store-managers', 'stores', 'items', 'store-inventory', 'categories', 'drivers', 'orders'].includes(tab)) setAdminTab(tab);
+                      } else if (role === 'Shopkeeper' || role === 'Store Manager') {
+                        if (['dashboard', 'items', 'categories', 'orders', 'drivers'].includes(tab)) setAdminTab(tab);
+                      }
+                    }}
+                  />
+                )}
+
+                {/* Admin Exclusive View: Store Management */}
+                {adminTab === 'stores' && (currentUser.role === 'Admin' || currentUser.role === 'Super Admin') && (
+                  <StoreManager />
+                )}
+
+                {/* Admin Exclusive View: Store Managers */}
+                {adminTab === 'store-managers' && (currentUser.role === 'Admin' || currentUser.role === 'Super Admin') && (
+                  <UserManager
+                    type="store-managers"
+                    users={users}
+                    orders={orders}
+                    items={items}
+                    onToggleUserStatus={handleToggleUserStatus}
+                    onCreateUser={handleCreateUser}
+                    onUpdateUserRole={handleUpdateUserRole}
+                  />
+                )}
+
+                {/* Admin Exclusive View: Customers */}
+                {adminTab === 'customers' && (currentUser.role === 'Admin' || currentUser.role === 'Super Admin') && (
+                  <UserManager
+                    type="customers"
+                    users={users}
+                    orders={orders}
+                    items={items}
+                    onToggleUserStatus={handleToggleUserStatus}
+                    onCreateUser={handleCreateUser}
+                    onUpdateUserRole={handleUpdateUserRole}
+                  />
+                )}
+
+                {/* Admin & Shopkeeper Operations: Product Catalog, Add Items, Stock Management */}
+                {['items', 'store-inventory'].includes(adminTab) && ['Shopkeeper', 'Store Manager', 'Admin', 'Super Admin'].includes(currentUser.role) && (
+                  <ItemManager
+                    viewType={adminTab}
+                    items={items}
+                    categories={categories}
+                    onAddItem={handleAddItem}
+                    onAddInventory={handleAddInventory}
+                    onUpdateStock={handleUpdateStock}
+                    onDeleteItem={handleDeleteItem}
+                    currentUser={currentUser}
+                  />
+                )}
+
+                {/* Admin & Shopkeeper Operations: Food Categories */}
+                {adminTab === 'categories' && ['Shopkeeper', 'Store Manager', 'Admin', 'Super Admin'].includes(currentUser.role) && (
+                  <CategoryManager
+                    categories={categories}
+                    items={items}
+                    onAddCategory={handleAddCategory}
+                    onDeleteCategory={handleDeleteCategory}
+                    currentUser={currentUser}
+                  />
+                )}
+
+                {/* Order Fulfillment */}
+                {adminTab === 'orders' && ['Shopkeeper', 'Store Manager', 'Admin', 'Super Admin'].includes(currentUser.role) && (
+                  <OrderFulfillment
+                    orders={orders}
+                    onUpdateOrderStatus={handleUpdateOrderStatus}
+                    onAssignRider={handleAssignRider}
+                    currentUser={currentUser}
+                    drivers={users.filter(u => u.role === 'Delivery Partner')} 
+                  />
+                )}
+
+                {/* Driver Management */}
+                {adminTab === 'drivers' && ['Shopkeeper', 'Store Manager', 'Admin', 'Super Admin'].includes(currentUser.role) && (
+                  <DriverManagement
+                    drivers={users.filter(u => u.role === 'Delivery Partner')}
+                    currentUser={currentUser}
+                    onAddDriver={handleAddDriver}
+                    onDeleteDriver={handleDeleteDriver}
+                    onUpdateDriverStatus={handleUpdateDriverStatus}
+                  />
+                )}
+
+                {/* Rider View */}
+                {currentUser.role === 'Delivery Partner' && (
+                  <RiderDashboard
+                    orders={orders}
+                    onUpdateOrderStatus={handleUpdateOrderStatus}
+                    currentUser={currentUser}
+                    onLogout={handleLogout}
+                  />
+                )}
+              </div>
+            </main>
+
+            <AdminAuthModal
+              isOpen={isAdminAuthOpen}
+              onClose={() => setIsAdminAuthOpen(false)}
+              currentUser={currentUser}
+              onLogin={handleLogin}
+              onRegister={handleRegister}
+              onLogout={handleLogout}
+            />
+          </div>
         </div>
       )}
 

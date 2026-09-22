@@ -1,13 +1,22 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  static const Color primary = Color(0xFFFFD700); // Kirana Yellow
+  static const Color primary = Color(0xFFF7D102); // Blinkit Iconic Yellow
   static const Color secondary = Color(0xFF0F172A); // Deep Navy/Black
-  static const Color accent = Color(0xFF10B981); // Emerald Green
-  static const Color background = Color(0xFFF8FAFC);
+  static const Color accent = Color(0xFF0C831F); // Blinkit Green
+  static const Color background = Color(0xFFF4F6F8);
   static const Color surface = Colors.white;
   static const Color textPrimary = Color(0xFF1E293B);
   static const Color textSecondary = Color(0xFF64748B);
+
+  // Blinkit Brand Specific Accents
+  static const Color blinkitYellow = Color(0xFFF7D102);
+  static const Color blinkitBlue = Color(0xFF0284C7);
+  static const Color blinkitGreen = Color(0xFF0C831F);
+  static const Color cardMint = Color(0xFFEBFBF5);
+  static const Color cardBlue = Color(0xFFEFF6FF);
+  static const Color cardYellow = Color(0xFFFEFCE8);
+  static const Color cardPurple = Color(0xFFFAF5FF);
 
   static ThemeData get lightTheme {
     return ThemeData(

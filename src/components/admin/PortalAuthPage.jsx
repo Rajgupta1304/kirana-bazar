@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Store, ShieldCheck, LogIn, UserPlus, Sparkles, Building2, User, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Store, ShieldCheck, LogIn, UserPlus, Sparkles, Building2, User, ArrowRight, CheckCircle2, Bike } from 'lucide-react';
 
 export default function PortalAuthPage({ onLogin, onRegister, onSwitchToCustomer }) {
   const [tab, setTab] = useState('login'); // 'login' | 'register'
@@ -189,22 +189,40 @@ export default function PortalAuthPage({ onLogin, onRegister, onSwitchToCustomer
                     Quick Demo Access
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <button
                     type="button"
                     onClick={() => {
                       onLogin('shopkeeper@kiranabazar.com', 'shop123');
                     }}
-                    className="p-4 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl text-amber-200 font-extrabold text-sm transition-all duration-300 text-left flex items-center justify-between group hover:-translate-y-0.5"
+                    className="p-3.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl text-amber-200 font-extrabold text-sm transition-all duration-300 text-left flex items-center justify-between group hover:-translate-y-0.5"
                   >
                     <div>
-                      <span className="block font-black text-sm text-amber-400 flex items-center gap-1.5">
-                        <Store className="w-4 h-4" /> Shopkeeper
+                      <span className="block font-black text-xs sm:text-sm text-amber-400 flex items-center gap-1.5">
+                        <Store className="w-3.5 h-3.5" /> Shopkeeper
                       </span>
-                      <span className="text-xs text-amber-200/70 mt-1 block font-medium">Sharma Kirana Store</span>
+                      <span className="text-[11px] text-amber-200/70 mt-0.5 block font-medium">Sharma Kirana</span>
                     </div>
-                    <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center group-hover:bg-amber-500/40 transition-colors">
-                      <ArrowRight className="w-4 h-4 text-amber-400" />
+                    <div className="w-7 h-7 rounded-full bg-amber-500/20 flex items-center justify-center group-hover:bg-amber-500/40 transition-colors flex-shrink-0">
+                      <ArrowRight className="w-3.5 h-3.5 text-amber-400" />
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onLogin('rider@kiranabazar.com', 'rider123');
+                    }}
+                    className="p-3.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl text-emerald-200 font-extrabold text-sm transition-all duration-300 text-left flex items-center justify-between group hover:-translate-y-0.5"
+                  >
+                    <div>
+                      <span className="block font-black text-xs sm:text-sm text-emerald-400 flex items-center gap-1.5">
+                        <Bike className="w-3.5 h-3.5" /> Delivery Rider
+                      </span>
+                      <span className="text-[11px] text-emerald-200/70 mt-0.5 block font-medium">Express Fleet</span>
+                    </div>
+                    <div className="w-7 h-7 rounded-full bg-emerald-500/20 flex items-center justify-center group-hover:bg-emerald-500/40 transition-colors flex-shrink-0">
+                      <ArrowRight className="w-3.5 h-3.5 text-emerald-400" />
                     </div>
                   </button>
 
@@ -213,16 +231,16 @@ export default function PortalAuthPage({ onLogin, onRegister, onSwitchToCustomer
                     onClick={() => {
                       onLogin('admin@kiranabazar.com', 'admin123');
                     }}
-                    className="p-4 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 rounded-xl text-purple-200 font-extrabold text-sm transition-all duration-300 text-left flex items-center justify-between group hover:-translate-y-0.5"
+                    className="p-3.5 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 rounded-xl text-purple-200 font-extrabold text-sm transition-all duration-300 text-left flex items-center justify-between group hover:-translate-y-0.5"
                   >
                     <div>
-                      <span className="block font-black text-sm text-purple-400 flex items-center gap-1.5">
-                        <ShieldCheck className="w-4 h-4" /> Admin
+                      <span className="block font-black text-xs sm:text-sm text-purple-400 flex items-center gap-1.5">
+                        <ShieldCheck className="w-3.5 h-3.5" /> Admin
                       </span>
-                      <span className="text-xs text-purple-200/70 mt-1 block font-medium">System Manager</span>
+                      <span className="text-[11px] text-purple-200/70 mt-0.5 block font-medium">System Manager</span>
                     </div>
-                    <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center group-hover:bg-purple-500/40 transition-colors">
-                      <ArrowRight className="w-4 h-4 text-purple-400" />
+                    <div className="w-7 h-7 rounded-full bg-purple-500/20 flex items-center justify-center group-hover:bg-purple-500/40 transition-colors flex-shrink-0">
+                      <ArrowRight className="w-3.5 h-3.5 text-purple-400" />
                     </div>
                   </button>
                 </div>

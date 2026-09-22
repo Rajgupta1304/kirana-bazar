@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import User from '../models/User.js';
 import Store from '../models/Store.js';
 import StoreStaff from '../models/StoreStaff.js';
@@ -127,6 +128,43 @@ router.post('/', async (req, res) => {
       }
       memoryUsers.unshift(newUserObj);
       return res.status(201).json(newUserObj);
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/users/:id (Profile update)
+router.patch('/:id', async (req, res) => {
+  try {
+    const { name, phone, address } = req.body;
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (phone !== undefined) updateData.phone = phone;
+    if (address !== undefined) updateData.address = address;
+
+    if (isMongoConnected) {
+      const isObjectId = mongoose.Types.ObjectId.isValid(req.params.id);
+      const query = isObjectId
+        ? { $or: [{ id: req.params.id }, { _id: req.params.id }, { email: req.params.id }] }
+        : { $or: [{ id: req.params.id }, { email: req.params.id }] };
+
+      const updated = await User.findOneAndUpdate(
+        query,
+        { $set: updateData },
+        { new: true }
+      );
+      if (updated) {
+        return res.json(updated);
+      }
+      return res.status(404).json({ error: 'User not found' });
+    } else {
+      const user = memoryUsers.find(u => u.id === req.params.id || u.email === req.params.id);
+      if (user) {
+        Object.assign(user, updateData);
+        return res.json(user);
+      }
+      return res.status(404).json({ error: 'User not found' });
     }
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -41,20 +41,49 @@ export default function ItemManager({ viewType = 'items', items, categories, onA
     return matchesShopkeeper && matchesSearch && matchesCategory && matchesStock;
   });
 
-  const handleAddSubmit = (e) => {
+  const handleAddSubmit = async (e) => {
     e.preventDefault();
     if (isStoreInventoryView) {
-      if (!newItem.productId || !newItem.price) {
-        alert('Please select a product and fill out the price.');
-        return;
+      if (newItem.productId === 'CREATE_NEW') {
+        if (!newItem.name || !newItem.price) {
+          alert('Please fill out product name and price.');
+          return;
+        }
+        const selectedCat = categories.find(c => c.id === newItem.categoryId);
+        const created = await onAddItem({
+          ...newItem,
+          categoryName: selectedCat ? selectedCat.name : 'General'
+        });
+        
+        if (created && created.id) {
+          onAddInventory({
+            storeId: 'store_1',
+            productId: created.id,
+            price: parseFloat(newItem.price),
+            mrp: parseFloat(newItem.mrp || newItem.price),
+            stock: parseInt(newItem.stock, 10)
+          });
+        }
+      } else {
+        if (!newItem.productId || !newItem.price) {
+          alert('Please select a product and fill out the price.');
+          return;
+        }
+        
+        const existing = items.find(i => i.id === newItem.productId && i.inStore);
+        if (existing) {
+          alert('This product is already in your store inventory! Please update its stock from the table instead.');
+          return;
+        }
+
+        onAddInventory({
+          storeId: 'store_1',
+          productId: newItem.productId,
+          price: parseFloat(newItem.price),
+          mrp: parseFloat(newItem.mrp || newItem.price),
+          stock: parseInt(newItem.stock, 10)
+        });
       }
-      onAddInventory({
-        storeId: 'store_1',
-        productId: newItem.productId,
-        price: parseFloat(newItem.price),
-        mrp: parseFloat(newItem.mrp || newItem.price),
-        stock: parseInt(newItem.stock, 10)
-      });
     } else {
       if (!newItem.name) {
         alert('Please fill out product name.');
@@ -238,17 +267,19 @@ export default function ItemManager({ viewType = 'items', items, categories, onA
 
                     {/* Actions */}
                     <td className="p-3.5 text-right">
-                      <button
-                        onClick={() => {
-                          if (confirm(`Are you sure you want to delete ${item.name}?`)) {
-                            onDeleteItem(item.id);
-                          }
-                        }}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                        title="Delete product"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {!isShopkeeperRole && (
+                        <button
+                          onClick={() => {
+                            if (confirm(`Are you sure you want to delete ${item.name}?`)) {
+                              onDeleteItem(item.id);
+                            }
+                          }}
+                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                          title="Delete product"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -274,25 +305,71 @@ export default function ItemManager({ viewType = 'items', items, categories, onA
 
             <form onSubmit={handleAddSubmit} className="space-y-3 text-xs">
               {isStoreInventoryView ? (
-                <div>
-                  <label className="font-bold text-gray-700 block mb-1">Select Master Product</label>
-                  <select
-                    required
-                    value={newItem.productId}
-                    onChange={(e) => setNewItem({ ...newItem, productId: e.target.value })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
-                  >
-                    {notInStoreItems.length === 0 ? (
-                      <option value="" disabled>All global products are already in your store!</option>
-                    ) : (
-                      <>
-                        <option value="">-- Choose a product to add to your store --</option>
-                        {notInStoreItems.map(p => (
-                          <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>
-                        ))}
-                      </>
-                    )}
-                  </select>
+                <div className="space-y-3">
+                  <div>
+                    <label className="font-bold text-gray-700 block mb-1">Select Master Product</label>
+                    <select
+                      required
+                      value={newItem.productId}
+                      onChange={(e) => setNewItem({ ...newItem, productId: e.target.value })}
+                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
+                    >
+                      <option value="">-- Choose a product --</option>
+                      <option value="CREATE_NEW" className="font-bold text-green-700">+ Create a completely new Product</option>
+                      {notInStoreItems.length === 0 ? (
+                        <option value="" disabled>All global products are already in your store!</option>
+                      ) : (
+                        notInStoreItems.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} ({p.unit})
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </div>
+                  
+                  {newItem.productId === 'CREATE_NEW' && (
+                    <>
+                      <div>
+                        <label className="font-bold text-gray-700 block mb-1">New Product Name</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Amul Butter 100g"
+                          value={newItem.name}
+                          onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
+                          className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="font-bold text-gray-700 block mb-1">Category</label>
+                          <select
+                            value={newItem.categoryId}
+                            onChange={(e) => setNewItem({ ...newItem, categoryId: e.target.value })}
+                            className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
+                          >
+                            {categories.map(c => (
+                              <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="font-bold text-gray-700 block mb-1">Unit / Pack Weight</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. 500 ml or 1 kg"
+                            value={newItem.unit}
+                            onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
+                            className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               ) : (
                 <>
