@@ -20,7 +20,7 @@ export default function UserManager({ type = 'all', users, orders, items = [], o
 
   useEffect(() => {
     if (isAddModalOpen && (newUserRole === 'Shopkeeper' || newUserRole === 'Store Manager') && availableStores.length === 0) {
-      fetch('http://localhost:5000/api/auth/stores')
+      fetch('/api/auth/stores')
         .then(res => res.json())
         .then(data => setAvailableStores(data || []))
         .catch(err => console.error('Failed to fetch stores', err));

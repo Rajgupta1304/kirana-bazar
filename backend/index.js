@@ -59,6 +59,55 @@ app.use('/api/drivers', driverRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/stores', storeRoutes);
 
+// Customer Mobile App (Flutter Web PWA)
+const customerAppPath = path.join(__dirname, '../customer_app/build/web');
+app.use('/app', express.static(customerAppPath));
+app.get('/app/*', (req, res) => {
+  res.sendFile(path.join(customerAppPath, 'index.html'));
+});
+
+// Mobile App Download Route & Landing Page
+const downloadsPath = path.join(__dirname, '../downloads');
+app.use('/download/files', express.static(downloadsPath));
+
+app.get('/download', (req, res) => {
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Download Kirana Bazar Mobile App</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4">
+  <div class="max-w-md w-full bg-gray-800 rounded-3xl p-8 border border-gray-700 shadow-2xl text-center">
+    <div class="w-20 h-20 bg-gradient-to-tr from-yellow-400 to-amber-500 rounded-2xl mx-auto flex items-center justify-center text-3xl shadow-lg mb-6">
+      🛒
+    </div>
+    <h1 class="text-2xl font-bold text-white mb-2">Kirana Bazar App</h1>
+    <p class="text-gray-400 text-sm mb-6">India's Quickest Grocery • Delivered in 8 Minutes</p>
+    
+    <div class="space-y-4">
+      <a href="/app" class="block w-full py-3.5 px-6 rounded-xl font-bold text-gray-900 bg-yellow-400 hover:bg-yellow-300 transition shadow-lg">
+        🚀 Launch Customer Mobile App
+      </a>
+      <a href="/download/files/kirana-bazar.apk" class="block w-full py-3.5 px-6 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-500 transition shadow-lg">
+        📲 Download Android APK
+      </a>
+      <a href="/" class="block text-gray-400 hover:text-gray-200 text-sm pt-2">
+        ← Open Admin & Rider Portal
+      </a>
+    </div>
+
+    <div class="mt-8 pt-6 border-t border-gray-700 text-xs text-gray-500">
+      <p>Works on all Android & iOS devices via PWA.</p>
+      <p class="mt-1">Tap 'Add to Home Screen' in browser for full app experience.</p>
+    </div>
+  </div>
+</body>
+</html>`);
+});
+
 // Static Hosting for Compiled Frontend Web App (dist/)
 const distPath = path.join(__dirname, '../dist');
 app.use(express.static(distPath));
@@ -74,14 +123,16 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal Server Error', message: err.message });
 });
 
-// Start Server with dynamic port scanning (5000 -> 5010)
+// Start Server with dynamic port scanning on 0.0.0.0
+const HOST = '0.0.0.0';
+
 function listenOnAvailablePort(portAttempt) {
-  const server = app.listen(portAttempt, () => {
-    console.log(`🚀 Kirana Bazar Unified Full-Stack Server running on http://localhost:${portAttempt}`);
+  const server = app.listen(portAttempt, HOST, () => {
+    console.log(`🚀 Kirana Bazar Unified Full-Stack Server running on http://${HOST}:${portAttempt}`);
   });
 
   server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
+    if (err.code === 'EADDRINUSE' && !process.env.PORT) {
       console.log(`⚠️ Port ${portAttempt} in use, trying next port...`);
       listenOnAvailablePort(portAttempt + 1);
     } else {
@@ -96,3 +147,4 @@ async function startServer() {
 }
 
 startServer();
+

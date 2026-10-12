@@ -23,7 +23,7 @@ export default function PortalAuthPage({ onLogin, onRegister, onSwitchToCustomer
 
   useEffect(() => {
     if (tab === 'register' && regRole === 'Shopkeeper' && availableStores.length === 0) {
-      fetch('http://localhost:5000/api/auth/stores')
+      fetch('/api/auth/stores')
         .then(res => res.json())
         .then(data => setAvailableStores(data || []))
         .catch(err => console.error('Failed to fetch stores', err));

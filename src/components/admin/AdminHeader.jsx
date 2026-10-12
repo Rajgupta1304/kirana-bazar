@@ -16,7 +16,8 @@ import {
   AlertTriangle,
   ShoppingBag,
   Package,
-  Layers
+  Layers,
+  Smartphone
 } from 'lucide-react';
 
 const TAB_TITLES = {
@@ -226,6 +227,18 @@ export default function AdminHeader({
       {/* Right Section: Live Status, Notifications, Refresh & Profile */}
       <div className="flex items-center gap-2 sm:gap-3">
         
+        {/* Customer Mobile App & APK Download Link */}
+        <a
+          href="/download"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 text-xs font-bold border border-amber-400/30 transition active:scale-95"
+          title="Customer Mobile App & Android APK Download"
+        >
+          <Smartphone className="w-3.5 h-3.5 text-amber-600" />
+          <span>Mobile App & APK</span>
+        </a>
+
         {/* Live Backend Indicator Badge */}
         <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-[11px] font-bold">
           <span className="relative flex h-2 w-2">

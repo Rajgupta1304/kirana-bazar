@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Store, MapPin, CheckCircle, XCircle, Plus, Users } from 'lucide-react';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = '/api';
 
 export default function StoreManager() {
   const [stores, setStores] = useState([]);

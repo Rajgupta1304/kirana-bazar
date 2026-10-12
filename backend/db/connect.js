@@ -5,7 +5,7 @@ import Category from '../models/Category.js';
 import Order from '../models/Order.js';
 import Driver from '../models/Driver.js';
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/kiranabazar';
+const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URL || process.env.MONGO_PRIVATE_URL || 'mongodb://127.0.0.1:27017/kiranabazar';
 
 // Initial Seed Data
 const SEED_USERS = [
