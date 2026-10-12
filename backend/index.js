@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { connectDB } from './db/connect.js';
 
@@ -68,6 +69,16 @@ app.get('/app/*', (req, res) => {
 
 // Mobile App Download Route & Landing Page
 const downloadsPath = path.join(__dirname, '../downloads');
+
+app.get('/download/files/kirana-bazar.apk', (req, res) => {
+  const apkPath = path.join(downloadsPath, 'kirana-bazar.apk');
+  if (fs.existsSync(apkPath)) {
+    res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+    return res.download(apkPath, 'kirana-bazar.apk');
+  }
+  return res.status(404).send('APK file is currently being packaged. Please access the mobile web app at /app in the meantime!');
+});
+
 app.use('/download/files', express.static(downloadsPath));
 
 app.get('/download', (req, res) => {
