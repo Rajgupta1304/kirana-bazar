@@ -13,9 +13,10 @@ class ApiService {
         return '$origin/api';
       }
     }
-    return 'http://localhost:5000/api';
+    return 'https://kirana-bazar-production.up.railway.app/api';
   }
   static String? _token;
+  static String? lastAuthError;
   
   static Map<String, String> get _headers => {
     'Content-Type': 'application/json',
@@ -782,24 +783,29 @@ class ApiService {
   }
 
   static Future<User?> login(String emailOrPhone, String password) async {
+    lastAuthError = null;
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/auth/login'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'emailOrPhone': emailOrPhone.trim(), 'password': password.trim()}),
       );
+      final data = json.decode(response.body);
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
         _token = data['token'];
         return User.fromJson(data['user']);
+      } else {
+        lastAuthError = data['error'] ?? 'Login failed (${response.statusCode})';
       }
     } catch (e) {
       print('Login error: $e');
+      lastAuthError = 'Network connection failed: $e';
     }
     return null;
   }
 
   static Future<User?> register(String name, String email, String phone, String password, String address) async {
+    lastAuthError = null;
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/auth/register'),
@@ -813,13 +819,16 @@ class ApiService {
           'role': 'Customer'
         }),
       );
+      final data = json.decode(response.body);
       if (response.statusCode == 201) {
-        final data = json.decode(response.body);
         _token = data['token'];
         return User.fromJson(data['user']);
+      } else {
+        lastAuthError = data['error'] ?? 'Registration failed (${response.statusCode})';
       }
     } catch (e) {
       print('Register error: $e');
+      lastAuthError = 'Network connection failed: $e';
     }
     return null;
   }

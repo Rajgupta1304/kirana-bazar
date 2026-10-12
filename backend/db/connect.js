@@ -58,14 +58,14 @@ const SEED_USERS = [
 ];
 
 const SEED_CATEGORIES = [
-  { id: 'cat_1', name: 'Dairy, Bread & Egg', icon: '🥛', color: 'bg-blue-50 text-blue-700' },
-  { id: 'cat_2', name: 'Fruits & Vegetables', icon: '🥦', color: 'bg-green-50 text-green-700' },
-  { id: 'cat_3', name: 'Munchies & Snacks', icon: '🍿', color: 'bg-yellow-50 text-yellow-700' },
-  { id: 'cat_4', name: 'Cold Drinks & Juices', icon: '🥤', color: 'bg-red-50 text-red-700' },
-  { id: 'cat_5', name: 'Instant & Frozen Food', icon: '🍜', color: 'bg-purple-50 text-purple-700' },
-  { id: 'cat_6', name: 'Sweet Tooth & Bakery', icon: '🍩', color: 'bg-pink-50 text-pink-700' },
-  { id: 'cat_7', name: 'Atta, Rice & Dal', icon: '🌾', color: 'bg-amber-50 text-amber-700' },
-  { id: 'cat_8', name: 'Cleaning & Household', icon: '🧹', color: 'bg-teal-50 text-teal-700' }
+  { id: 'cat_1', name: 'Dairy, Bread & Egg', icon: '🥛', color: 'bg-blue-50 text-blue-700', image: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=400&q=80' },
+  { id: 'cat_2', name: 'Fruits & Vegetables', icon: '🥦', color: 'bg-green-50 text-green-700', image: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=400&q=80' },
+  { id: 'cat_3', name: 'Munchies & Snacks', icon: '🍿', color: 'bg-yellow-50 text-yellow-700', image: 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=400&q=80' },
+  { id: 'cat_4', name: 'Cold Drinks & Juices', icon: '🥤', color: 'bg-red-50 text-red-700', image: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=400&q=80' },
+  { id: 'cat_5', name: 'Instant & Frozen Food', icon: '🍜', color: 'bg-purple-50 text-purple-700', image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=400&q=80' },
+  { id: 'cat_6', name: 'Sweet Tooth & Bakery', icon: '🍩', color: 'bg-pink-50 text-pink-700', image: 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?auto=format&fit=crop&w=400&q=80' },
+  { id: 'cat_7', name: 'Atta, Rice & Dal', icon: '🌾', color: 'bg-amber-50 text-amber-700', image: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=400&q=80' },
+  { id: 'cat_8', name: 'Cleaning & Household', icon: '🧹', color: 'bg-teal-50 text-teal-700', image: 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?auto=format&fit=crop&w=400&q=80' }
 ];
 
 const SEED_PRODUCTS = [
@@ -297,6 +297,13 @@ async function seedInitialData() {
     const catCount = await Category.countDocuments();
     if (catCount === 0) {
       await Category.insertMany(SEED_CATEGORIES);
+    } else {
+      for (const cat of SEED_CATEGORIES) {
+        await Category.updateOne(
+          { id: cat.id, $or: [{ image: '' }, { image: null }, { image: { $exists: false } }] },
+          { $set: { image: cat.image } }
+        );
+      }
     }
   } catch (e) {
     console.warn('Category seed warning:', e.message);

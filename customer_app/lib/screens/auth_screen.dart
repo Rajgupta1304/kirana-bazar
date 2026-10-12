@@ -17,57 +17,93 @@ class _AuthScreenState extends State<AuthScreen> {
   bool isLoading = false;
   bool obscurePassword = true;
 
-  final phoneCtrl = TextEditingController(text: 'rahul@example.com');
-  final pwdCtrl = TextEditingController(text: 'user123');
-  final nameCtrl = TextEditingController();
-  final emailCtrl = TextEditingController();
-  final addressCtrl = TextEditingController();
+  // Dedicated Login Form Controllers
+  final loginIdentifierCtrl = TextEditingController(text: 'rahul@example.com');
+  final loginPwdCtrl = TextEditingController(text: 'user123');
+
+  // Dedicated Registration Form Controllers
+  final regNameCtrl = TextEditingController();
+  final regEmailCtrl = TextEditingController();
+  final regPhoneCtrl = TextEditingController();
+  final regPwdCtrl = TextEditingController();
+  final regAddressCtrl = TextEditingController();
 
   @override
   void dispose() {
-    phoneCtrl.dispose();
-    pwdCtrl.dispose();
-    nameCtrl.dispose();
-    emailCtrl.dispose();
-    addressCtrl.dispose();
+    loginIdentifierCtrl.dispose();
+    loginPwdCtrl.dispose();
+    regNameCtrl.dispose();
+    regEmailCtrl.dispose();
+    regPhoneCtrl.dispose();
+    regPwdCtrl.dispose();
+    regAddressCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _submitLogin() async {
-    if (phoneCtrl.text.trim().isEmpty || pwdCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please fill out all login fields'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return;
+    if (isLogin) {
+      if (loginIdentifierCtrl.text.trim().isEmpty || loginPwdCtrl.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter your email/phone and password'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+    } else {
+      if (regNameCtrl.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter your full name'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+      if (regEmailCtrl.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter your email address'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+      if (regPhoneCtrl.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter your mobile number'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+      if (regPwdCtrl.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please create a password (at least 6 characters)'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
     }
 
     setState(() => isLoading = true);
     User? user;
     try {
       if (isLogin) {
-        user = await ApiService.login(phoneCtrl.text.trim(), pwdCtrl.text.trim());
+        user = await ApiService.login(loginIdentifierCtrl.text.trim(), loginPwdCtrl.text.trim());
       } else {
-        if (nameCtrl.text.trim().isEmpty) {
-          setState(() => isLoading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please enter your full name'),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
-          return;
-        }
         user = await ApiService.register(
-          nameCtrl.text.trim(),
-          emailCtrl.text.trim(),
-          phoneCtrl.text.trim(),
-          pwdCtrl.text.trim(),
-          addressCtrl.text.trim().isNotEmpty
-              ? addressCtrl.text.trim()
-              : 'House no 10 sector 104, Metro Heights',
+          regNameCtrl.text.trim(),
+          regEmailCtrl.text.trim(),
+          regPhoneCtrl.text.trim(),
+          regPwdCtrl.text.trim(),
+          regAddressCtrl.text.trim().isNotEmpty
+              ? regAddressCtrl.text.trim()
+              : 'Main Bazaar, Sector 14',
         );
       }
     } catch (e) {
@@ -81,19 +117,19 @@ class _AuthScreenState extends State<AuthScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            isLogin ? 'Welcome back, ${user.name}!' : 'Account created successfully!',
+            isLogin ? 'Welcome back, ${user.name}!' : 'Account created! Welcome, ${user.name}!',
           ),
           backgroundColor: AppTheme.accent,
         ),
       );
     } else if (mounted) {
+      final errorMsg = ApiService.lastAuthError ??
+          (isLogin
+              ? 'Invalid credentials. Please check email and password.'
+              : 'Registration failed. User may already exist.');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            isLogin
-                ? 'Invalid credentials. Please check email/password.'
-                : 'Registration failed. User may already exist.',
-          ),
+          content: Text(errorMsg),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -135,7 +171,7 @@ class _AuthScreenState extends State<AuthScreen> {
     context.read<CartProvider>().continueAsGuest();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Browsing as Guest. Welcome to Kirana Bazar!'),
+        content: Text("Browsing as Guest. Welcome to DMR Kirana's!"),
         backgroundColor: Color(0xFF0C8CE9),
       ),
     );
@@ -180,37 +216,47 @@ class _AuthScreenState extends State<AuthScreen> {
                       ),
                       child: Column(
                         children: [
-                          // Glowing Basket Icon Badge
+                          // DMR Kirana's App Logo Badge
                           Container(
-                            width: 72,
-                            height: 72,
+                            width: 80,
+                            height: 80,
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFFFFDF00), Color(0xFFF59E0B)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              shape: BoxShape.circle,
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(22),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.2),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 6),
+                                  color: Colors.black.withOpacity(0.25),
+                                  blurRadius: 18,
+                                  offset: const Offset(0, 8),
                                 ),
                               ],
                               border: Border.all(color: Colors.white, width: 2.5),
                             ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.shopping_basket_rounded,
-                                size: 36,
-                                color: Color(0xFF0F172A),
+                            clipBehavior: Clip.antiAlias,
+                            child: Image.asset(
+                              'assets/images/logo.png',
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                decoration: const BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [Color(0xFFFFDF00), Color(0xFFF59E0B)],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                ),
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.shopping_basket_rounded,
+                                    size: 40,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
                           const SizedBox(height: 14),
                           const Text(
-                            'Kirana Bazar',
+                            "DMR Kirana's",
                             style: TextStyle(
                               fontSize: 26,
                               fontWeight: FontWeight.w900,
@@ -333,14 +379,14 @@ class _AuthScreenState extends State<AuthScreen> {
                           // Registration Fields
                           if (!isLogin) ...[
                             _buildInputField(
-                              controller: nameCtrl,
+                              controller: regNameCtrl,
                               label: 'Full Name',
                               hint: 'e.g. Rahul Sharma',
                               icon: Icons.person_outline,
                             ),
                             const SizedBox(height: 12),
                             _buildInputField(
-                              controller: emailCtrl,
+                              controller: regEmailCtrl,
                               label: 'Email Address',
                               hint: 'e.g. rahul@example.com',
                               icon: Icons.email_outlined,
@@ -348,41 +394,62 @@ class _AuthScreenState extends State<AuthScreen> {
                             ),
                             const SizedBox(height: 12),
                             _buildInputField(
-                              controller: addressCtrl,
+                              controller: regPhoneCtrl,
+                              label: 'Mobile Number',
+                              hint: 'e.g. 9876543210',
+                              icon: Icons.phone_android_outlined,
+                              keyboardType: TextInputType.phone,
+                            ),
+                            const SizedBox(height: 12),
+                            _buildInputField(
+                              controller: regAddressCtrl,
                               label: 'Delivery Address',
                               hint: 'Flat, Street, Area / Sector',
                               icon: Icons.location_on_outlined,
                             ),
                             const SizedBox(height: 12),
-                          ],
-
-                          // Phone or Email Field
-                          _buildInputField(
-                            controller: phoneCtrl,
-                            label: isLogin ? 'Email or Mobile Number' : 'Mobile Number',
-                            hint: isLogin ? 'rahul@example.com or 9876543210' : '+91 98765 43210',
-                            icon: isLogin ? Icons.alternate_email : Icons.phone_android_outlined,
-                          ),
-
-                          const SizedBox(height: 12),
-
-                          // Password Field
-                          _buildInputField(
-                            controller: pwdCtrl,
-                            label: 'Password',
-                            hint: '••••••••',
-                            icon: Icons.lock_outline,
-                            obscureText: obscurePassword,
-                            suffixIcon: IconButton(
-                              icon: Icon(
-                                obscurePassword ? Icons.visibility_off : Icons.visibility,
-                                color: const Color(0xFF94A3B8),
-                                size: 20,
+                            _buildInputField(
+                              controller: regPwdCtrl,
+                              label: 'Create Password',
+                              hint: '••••••••',
+                              icon: Icons.lock_outline,
+                              obscureText: obscurePassword,
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  obscurePassword ? Icons.visibility_off : Icons.visibility,
+                                  color: const Color(0xFF94A3B8),
+                                  size: 20,
+                                ),
+                                onPressed: () =>
+                                    setState(() => obscurePassword = !obscurePassword),
                               ),
-                              onPressed: () =>
-                                  setState(() => obscurePassword = !obscurePassword),
                             ),
-                          ),
+                          ] else ...[
+                            // Login Fields
+                            _buildInputField(
+                              controller: loginIdentifierCtrl,
+                              label: 'Email or Mobile Number',
+                              hint: 'rahul@example.com or 9876543210',
+                              icon: Icons.alternate_email,
+                            ),
+                            const SizedBox(height: 12),
+                            _buildInputField(
+                              controller: loginPwdCtrl,
+                              label: 'Password',
+                              hint: '••••••••',
+                              icon: Icons.lock_outline,
+                              obscureText: obscurePassword,
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  obscurePassword ? Icons.visibility_off : Icons.visibility,
+                                  color: const Color(0xFF94A3B8),
+                                  size: 20,
+                                ),
+                                onPressed: () =>
+                                    setState(() => obscurePassword = !obscurePassword),
+                              ),
+                            ),
+                          ],
 
                           const SizedBox(height: 22),
 

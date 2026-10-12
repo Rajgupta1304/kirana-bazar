@@ -363,7 +363,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text(
-                                  'Kirana Bazar in',
+                                  "DMR Kirana's in",
                                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white70),
                                 ),
                                 const Text(
@@ -420,7 +420,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                                 onTap: () {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
-                                      content: Text('Kirana Bazar Wallet: ₹0.00'),
+                                      content: Text("DMR Kirana's Wallet: ₹0.00"),
                                       duration: Duration(seconds: 2),
                                     ),
                                   );

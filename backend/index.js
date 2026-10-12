@@ -87,7 +87,7 @@ app.get('/download', (req, res) => {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Download Kirana Bazar Mobile App</title>
+  <title>Download DMR Kirana's Mobile App</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
 </head>
 <body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4">
@@ -95,7 +95,7 @@ app.get('/download', (req, res) => {
     <div class="w-20 h-20 bg-gradient-to-tr from-yellow-400 to-amber-500 rounded-2xl mx-auto flex items-center justify-center text-3xl shadow-lg mb-6">
       🛒
     </div>
-    <h1 class="text-2xl font-bold text-white mb-2">Kirana Bazar App</h1>
+    <h1 class="text-2xl font-bold text-white mb-2">DMR Kirana's App</h1>
     <p class="text-gray-400 text-sm mb-6">India's Quickest Grocery • Delivered in 8 Minutes</p>
     
     <div class="space-y-4">

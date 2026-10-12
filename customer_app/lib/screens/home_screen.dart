@@ -425,7 +425,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       const Text(
-                                        'Kirana Bazar in',
+                                        "DMR Kirana's in",
                                         style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white70),
                                       ),
                                       const Text(
@@ -482,7 +482,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       onTap: () {
                                         ScaffoldMessenger.of(context).showSnackBar(
                                           const SnackBar(
-                                            content: Text('Kirana Bazar Wallet: ₹0.00 (No active coupons)'),
+                                            content: Text("DMR Kirana's Wallet: ₹0.00 (No active coupons)"),
                                             duration: Duration(seconds: 2),
                                           ),
                                         );

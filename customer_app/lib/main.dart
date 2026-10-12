@@ -22,7 +22,7 @@ class KiranaCustomerApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Kirana Bazar',
+      title: "DMR Kirana's",
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       home: Consumer<CartProvider>(

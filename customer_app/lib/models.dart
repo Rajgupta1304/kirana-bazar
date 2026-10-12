@@ -65,12 +65,30 @@ class Category {
     this.section = 'Grocery & Kitchen',
   });
 
+  static final Map<String, String> _fallbackCategoryImages = {
+    'cat_1': 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=400&q=80',
+    'cat_2': 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=400&q=80',
+    'cat_3': 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=400&q=80',
+    'cat_4': 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=400&q=80',
+    'cat_5': 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=400&q=80',
+    'cat_6': 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?auto=format&fit=crop&w=400&q=80',
+    'cat_7': 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=400&q=80',
+    'cat_8': 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?auto=format&fit=crop&w=400&q=80',
+  };
+
   factory Category.fromJson(Map<String, dynamic> json) {
+    final catId = json['id']?.toString() ?? '';
+    var img = json['image']?.toString() ?? '';
+    if (img.isEmpty || img == 'null') {
+      img = _fallbackCategoryImages[catId] ??
+          'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80';
+    }
+
     return Category(
-      id: json['id']?.toString() ?? '',
+      id: catId,
       name: json['name']?.toString() ?? '',
-      icon: json['icon']?.toString() ?? '',
-      image: json['image']?.toString() ?? '',
+      icon: json['icon']?.toString() ?? '🛍️',
+      image: img,
       section: json['section']?.toString() ?? 'Grocery & Kitchen',
     );
   }
