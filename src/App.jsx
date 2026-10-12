@@ -97,14 +97,10 @@ export default function App() {
 
 
 
-  // Auth Handlers with REST API
+  // Auth Handlers with Pure REST API (Database driven)
   const handleLogin = async (emailOrPhone, password) => {
-    let loggedUser;
-    try {
-      loggedUser = await apiClient.login(emailOrPhone, password);
-    } catch (e) {
-      loggedUser = db.login(emailOrPhone, password);
-    }
+    // Pure Database Login via Express MongoDB API
+    const loggedUser = await apiClient.login(emailOrPhone, password);
     if (loggedUser) {
       setCurrentUser(loggedUser);
       db.setCurrentUser(loggedUser);
@@ -117,12 +113,8 @@ export default function App() {
   };
 
   const handleRegister = async (userData) => {
-    let loggedUser;
-    try {
-      loggedUser = await apiClient.register(userData);
-    } catch (e) {
-      loggedUser = db.register(userData);
-    }
+    // Pure Database Registration via Express MongoDB API
+    const loggedUser = await apiClient.register(userData);
     if (loggedUser) {
       setCurrentUser(loggedUser);
       db.setCurrentUser(loggedUser);
@@ -134,6 +126,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('token');
     db.logout();
     setCurrentUser(null);
     loadData(null);

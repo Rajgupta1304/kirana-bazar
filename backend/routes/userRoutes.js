@@ -7,63 +7,14 @@ import { isMongoConnected } from '../db/connect.js';
 
 const router = express.Router();
 
-let memoryUsers = [
-  {
-    id: 'usr_1',
-    name: 'Rahul Sharma',
-    email: 'rahul@example.com',
-    phone: '+91 98989 12345',
-    password: 'user123',
-    role: 'Customer',
-    status: 'Active',
-    shopName: '',
-    address: 'B-12, Sector 14, Metro Heights'
-  },
-  {
-    id: 'admin_1',
-    name: 'Store Manager (Admin)',
-    email: 'admin@kiranabazar.com',
-    phone: '+91 99999 88888',
-    password: 'admin123',
-    role: 'Admin',
-    status: 'Active',
-    shopName: '',
-    address: 'Kirana Bazar Warehouse Dark Store #402'
-  },
-  {
-    id: 'shop_1',
-    name: 'Sharma Kirana Store',
-    email: 'shopkeeper@kiranabazar.com',
-    phone: '+91 98765 43210',
-    password: 'shop123',
-    role: 'Shopkeeper',
-    status: 'Active',
-    shopName: 'Sharma General & Grocery Store',
-    address: 'Shop 14, Main Market, Sector 15'
-  },
-  {
-    id: 'rider_1',
-    name: 'Ramesh Kumar (Rider)',
-    email: 'rider@kiranabazar.com',
-    phone: '+91 98123 45678',
-    password: 'rider123',
-    role: 'Delivery Partner',
-    status: 'Available',
-    shopName: '',
-    vehicle: 'EV Scooter (DL-01-AB-1234)',
-    address: 'Hub #1, Sector 15 Dark Store'
-  }
-];
-
-// GET /api/users
+// GET /api/users (Pure Database Query)
 router.get('/', async (req, res) => {
   try {
-    if (isMongoConnected) {
-      const users = await User.find().sort({ createdAt: -1 });
-      res.json(users);
-    } else {
-      res.json(memoryUsers);
+    if (!isMongoConnected) {
+      return res.status(503).json({ error: 'Database service is currently unavailable.' });
     }
+    const users = await User.find().sort({ createdAt: -1 });
+    res.json(users);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -134,12 +85,7 @@ router.post('/', async (req, res) => {
 
       return res.status(201).json(created);
     } else {
-      const existing = memoryUsers.find(u => u.email.toLowerCase() === email.toLowerCase() || u.phone === phone);
-      if (existing) {
-        return res.status(400).json({ error: 'User with this email or phone already exists.' });
-      }
-      memoryUsers.unshift(newUserObj);
-      return res.status(201).json(newUserObj);
+      return res.status(503).json({ error: 'Database service is currently unavailable.' });
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -155,29 +101,24 @@ router.patch('/:id', async (req, res) => {
     if (phone !== undefined) updateData.phone = phone;
     if (address !== undefined) updateData.address = address;
 
-    if (isMongoConnected) {
-      const isObjectId = mongoose.Types.ObjectId.isValid(req.params.id);
-      const query = isObjectId
-        ? { $or: [{ id: req.params.id }, { _id: req.params.id }, { email: req.params.id }] }
-        : { $or: [{ id: req.params.id }, { email: req.params.id }] };
-
-      const updated = await User.findOneAndUpdate(
-        query,
-        { $set: updateData },
-        { new: true }
-      );
-      if (updated) {
-        return res.json(updated);
-      }
-      return res.status(404).json({ error: 'User not found' });
-    } else {
-      const user = memoryUsers.find(u => u.id === req.params.id || u.email === req.params.id);
-      if (user) {
-        Object.assign(user, updateData);
-        return res.json(user);
-      }
-      return res.status(404).json({ error: 'User not found' });
+    if (!isMongoConnected) {
+      return res.status(503).json({ error: 'Database service is currently unavailable.' });
     }
+
+    const isObjectId = mongoose.Types.ObjectId.isValid(req.params.id);
+    const query = isObjectId
+      ? { $or: [{ id: req.params.id }, { _id: req.params.id }, { email: req.params.id }] }
+      : { $or: [{ id: req.params.id }, { email: req.params.id }] };
+
+    const updated = await User.findOneAndUpdate(
+      query,
+      { $set: updateData },
+      { new: true }
+    );
+    if (updated) {
+      return res.json(updated);
+    }
+    return res.status(404).json({ error: 'User not found in database' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -187,21 +128,17 @@ router.patch('/:id', async (req, res) => {
 router.patch('/:id/status', async (req, res) => {
   try {
     const { status } = req.body;
-    if (isMongoConnected) {
-      const updated = await User.findOneAndUpdate(
-        { id: req.params.id },
-        { status },
-        { new: true }
-      );
-      return res.json(updated);
-    } else {
-      const user = memoryUsers.find(u => u.id === req.params.id);
-      if (user) {
-        user.status = status;
-        return res.json(user);
-      }
-      return res.status(404).json({ error: 'User not found' });
+    if (!isMongoConnected) {
+      return res.status(503).json({ error: 'Database service is currently unavailable.' });
     }
+
+    const updated = await User.findOneAndUpdate(
+      { id: req.params.id },
+      { status },
+      { new: true }
+    );
+    if (!updated) return res.status(404).json({ error: 'User not found in database' });
+    return res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -211,25 +148,21 @@ router.patch('/:id/status', async (req, res) => {
 router.patch('/:id/role', async (req, res) => {
   try {
     const { role } = req.body;
-    if (!['Customer', 'Admin', 'Shopkeeper'].includes(role)) {
+    if (!['Customer', 'Admin', 'Shopkeeper', 'Delivery Partner'].includes(role)) {
       return res.status(400).json({ error: 'Invalid role specified' });
     }
 
-    if (isMongoConnected) {
-      const updated = await User.findOneAndUpdate(
-        { id: req.params.id },
-        { role },
-        { new: true }
-      );
-      return res.json(updated);
-    } else {
-      const user = memoryUsers.find(u => u.id === req.params.id);
-      if (user) {
-        user.role = role;
-        return res.json(user);
-      }
-      return res.status(404).json({ error: 'User not found' });
+    if (!isMongoConnected) {
+      return res.status(503).json({ error: 'Database service is currently unavailable.' });
     }
+
+    const updated = await User.findOneAndUpdate(
+      { id: req.params.id },
+      { role },
+      { new: true }
+    );
+    if (!updated) return res.status(404).json({ error: 'User not found in database' });
+    return res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -238,18 +171,13 @@ router.patch('/:id/role', async (req, res) => {
 // DELETE /api/users/:id
 router.delete('/:id', async (req, res) => {
   try {
-    if (isMongoConnected) {
-      const deleted = await User.findOneAndDelete({ id: req.params.id });
-      if (!deleted) return res.status(404).json({ error: 'User not found' });
-      return res.json({ message: 'User deleted successfully' });
-    } else {
-      const index = memoryUsers.findIndex(u => u.id === req.params.id);
-      if (index !== -1) {
-        memoryUsers.splice(index, 1);
-        return res.json({ message: 'User deleted successfully' });
-      }
-      return res.status(404).json({ error: 'User not found' });
+    if (!isMongoConnected) {
+      return res.status(503).json({ error: 'Database service is currently unavailable.' });
     }
+
+    const deleted = await User.findOneAndDelete({ id: req.params.id });
+    if (!deleted) return res.status(404).json({ error: 'User not found in database' });
+    return res.json({ message: 'User deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

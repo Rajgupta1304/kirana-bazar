@@ -5,56 +5,7 @@ import { generateToken } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Fallback memory store if MongoDB is offline
-let memoryUsers = [
-  {
-    id: 'usr_1',
-    name: 'Rahul Sharma',
-    email: 'rahul@example.com',
-    phone: '+91 98989 12345',
-    password: 'user123',
-    role: 'Customer',
-    status: 'Active',
-    shopName: '',
-    address: 'B-12, Sector 14, Metro Heights'
-  },
-  {
-    id: 'admin_1',
-    name: 'Store Manager (Admin)',
-    email: 'admin@kiranabazar.com',
-    phone: '+91 99999 88888',
-    password: 'admin123',
-    role: 'Admin',
-    status: 'Active',
-    shopName: '',
-    address: 'Kirana Bazar Warehouse Dark Store #402'
-  },
-  {
-    id: 'shop_1',
-    name: 'Sharma Kirana Store',
-    email: 'shopkeeper@kiranabazar.com',
-    phone: '+91 98765 43210',
-    password: 'shop123',
-    role: 'Shopkeeper',
-    status: 'Active',
-    shopName: 'Sharma General & Grocery Store',
-    address: 'Shop 14, Main Market, Sector 15'
-  },
-  {
-    id: 'rider_1',
-    name: 'Ramesh Kumar (Rider)',
-    email: 'rider@kiranabazar.com',
-    phone: '+91 98123 45678',
-    password: 'rider123',
-    role: 'Delivery Partner',
-    status: 'Available',
-    shopName: '',
-    vehicle: 'EV Scooter (DL-01-AB-1234)',
-    address: 'Hub #1, Sector 15 Dark Store'
-  }
-];
-
-// POST /api/auth/login
+// POST /api/auth/login (Pure Database Authentication)
 router.post('/login', async (req, res) => {
   try {
     const { emailOrPhone, password } = req.body;
@@ -62,27 +13,18 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email/Phone and password are required.' });
     }
 
-    let foundUser;
-    if (isMongoConnected) {
-      try {
-        foundUser = await User.findOne({
-          $or: [
-            { email: emailOrPhone.toLowerCase() },
-            { phone: emailOrPhone }
-          ],
-          password
-        });
-      } catch (err) {
-        console.warn('Mongo findOne error in auth login:', err.message);
-      }
+    if (!isMongoConnected) {
+      return res.status(503).json({ error: 'Database service is connecting. Please retry in a few moments.' });
     }
 
-    if (!foundUser) {
-      foundUser = memoryUsers.find(
-        u => (u.email.toLowerCase() === emailOrPhone.toLowerCase() || u.phone.includes(emailOrPhone)) &&
-             u.password === password
-      );
-    }
+    // Direct Database Query: Authenticate credentials strictly against MongoDB
+    const foundUser = await User.findOne({
+      $or: [
+        { email: emailOrPhone.trim().toLowerCase() },
+        { phone: emailOrPhone.trim() }
+      ],
+      password
+    });
 
     if (!foundUser) {
       return res.status(401).json({ error: 'Invalid email/phone or password.' });
@@ -215,13 +157,7 @@ router.post('/register', async (req, res) => {
 
       return res.status(201).json({ message: 'Registration successful', user: userResponse, token });
     } else {
-      const existing = memoryUsers.find(u => u.email.toLowerCase() === email.toLowerCase() || u.phone === phone);
-      if (existing) {
-        return res.status(400).json({ error: 'User with this email or phone already exists.' });
-      }
-      memoryUsers.push(newUserObj);
-      const token = generateToken(newUserObj);
-      return res.status(201).json({ message: 'Registration successful', user: newUserObj, token });
+      return res.status(503).json({ error: 'Database service is currently unavailable. Please try again shortly.' });
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -239,24 +175,20 @@ router.post('/forgot-password/send-otp', async (req, res) => {
       return res.status(400).json({ error: 'Email or phone number is required.' });
     }
 
-    const searchKey = emailOrPhone.trim().toLowerCase();
-    let foundUser;
-
-    if (isMongoConnected) {
-      foundUser = await User.findOne({
-        $or: [
-          { email: searchKey },
-          { phone: { $regex: emailOrPhone.trim(), $options: 'i' } }
-        ]
-      });
-    } else {
-      foundUser = memoryUsers.find(
-        u => u.email.toLowerCase() === searchKey || u.phone.includes(emailOrPhone.trim())
-      );
+    if (!isMongoConnected) {
+      return res.status(503).json({ error: 'Database service is currently unavailable.' });
     }
 
+    const searchKey = emailOrPhone.trim().toLowerCase();
+    const foundUser = await User.findOne({
+      $or: [
+        { email: searchKey },
+        { phone: { $regex: emailOrPhone.trim(), $options: 'i' } }
+      ]
+    });
+
     if (!foundUser) {
-      return res.status(404).json({ error: 'No account found matching this email or phone number.' });
+      return res.status(404).json({ error: 'No account found matching this email or phone number in database.' });
     }
 
     // Generate 6-digit OTP
@@ -290,6 +222,10 @@ router.post('/forgot-password/verify-reset', async (req, res) => {
       return res.status(400).json({ error: 'Email/phone, OTP, and new password are required.' });
     }
 
+    if (!isMongoConnected) {
+      return res.status(503).json({ error: 'Database service is currently unavailable.' });
+    }
+
     const searchKey = emailOrPhone.trim().toLowerCase();
     const cachedData = otpCache.get(searchKey);
 
@@ -298,24 +234,14 @@ router.post('/forgot-password/verify-reset', async (req, res) => {
       return res.status(400).json({ error: 'Invalid 2-Step Verification Code. Please check the code and try again.' });
     }
 
-    let updatedUser;
-    if (isMongoConnected) {
-      updatedUser = await User.findOneAndUpdate(
-        { $or: [{ email: searchKey }, { phone: { $regex: emailOrPhone.trim(), $options: 'i' } }] },
-        { password: newPassword },
-        { new: true }
-      );
-    } else {
-      updatedUser = memoryUsers.find(
-        u => u.email.toLowerCase() === searchKey || u.phone.includes(emailOrPhone.trim())
-      );
-      if (updatedUser) {
-        updatedUser.password = newPassword;
-      }
-    }
+    const updatedUser = await User.findOneAndUpdate(
+      { $or: [{ email: searchKey }, { phone: { $regex: emailOrPhone.trim(), $options: 'i' } }] },
+      { password: newPassword },
+      { new: true }
+    );
 
     if (!updatedUser) {
-      return res.status(404).json({ error: 'User account not found.' });
+      return res.status(404).json({ error: 'User account not found in database.' });
     }
 
     otpCache.delete(searchKey);
