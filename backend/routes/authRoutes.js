@@ -124,13 +124,7 @@ router.post('/register', async (req, res) => {
             id: targetStoreId,
             name: shopName || `${name}'s Kirana Store`,
             managerId: userId,
-            address: {
-              line1: address || 'Shop 14, Main Market',
-              area: '',
-              city: '',
-              state: '',
-              pincode: ''
-            },
+            address: typeof address === 'string' && address ? address : 'Shop 14, Main Market, Sector 15',
             status: 'ACTIVE'
           });
         }

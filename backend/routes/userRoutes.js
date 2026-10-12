@@ -64,13 +64,7 @@ router.post('/', async (req, res) => {
             id: targetStoreId,
             name: shopName || `${name}'s Kirana Store`,
             managerId: userId, // legacy link
-            address: {
-              line1: address || 'Shop 14, Main Market',
-              area: 'Sector 15',
-              city: 'Gurgaon',
-              state: 'Haryana',
-              pincode: '122001'
-            },
+            address: typeof address === 'string' && address ? address : 'Shop 14, Main Market, Sector 15',
             status: 'ACTIVE'
           });
         }
