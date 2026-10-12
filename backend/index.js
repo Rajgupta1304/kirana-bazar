@@ -21,7 +21,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const DEFAULT_PORT = parseInt(process.env.PORT || '5000', 10);
+const DEFAULT_PORT = parseInt(process.env.PORT || '8080', 10);
 
 // Disable HTTP 304 Caching so all API responses return HTTP 200 OK
 app.set('etag', false);

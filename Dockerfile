@@ -10,7 +10,7 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-ENV PORT=5000
+ENV PORT=8080
 
 # Install production dependencies
 COPY package*.json ./
@@ -28,6 +28,6 @@ COPY customer_app/build/web ./customer_app/build/web
 # Copy downloads directory
 COPY downloads ./downloads
 
-EXPOSE 5000
+EXPOSE 8080
 
 CMD ["node", "backend/index.js"]
