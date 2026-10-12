@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'cart_provider.dart';
 import 'theme.dart';
 import 'screens/main_screen.dart';
+import 'screens/auth_screen.dart';
 
 void main() {
   runApp(
@@ -24,7 +25,14 @@ class KiranaCustomerApp extends StatelessWidget {
       title: 'Kirana Bazar',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: const MainScreen(),
+      home: Consumer<CartProvider>(
+        builder: (context, cart, _) {
+          if (cart.currentUser == null) {
+            return const AuthScreen();
+          }
+          return const MainScreen();
+        },
+      ),
     );
   }
 }

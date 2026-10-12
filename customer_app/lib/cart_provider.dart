@@ -109,9 +109,23 @@ class CartProvider with ChangeNotifier {
 
   void setUser(User user) {
     _currentUser = user;
+    _selectedTabIndex = 0;
     if (user.address.isNotEmpty && !_savedAddresses.contains(user.address)) {
       _savedAddresses.insert(0, user.address);
     }
+    notifyListeners();
+  }
+
+  void continueAsGuest() {
+    _currentUser = User(
+      id: 'usr_guest',
+      name: 'Guest Shopper',
+      email: 'guest@kiranabazar.com',
+      phone: '+91 98765 43210',
+      address: _savedAddresses.isNotEmpty ? _savedAddresses.first : 'House no 10 sector 104, Metro Heights',
+      role: 'Customer',
+    );
+    _selectedTabIndex = 0;
     notifyListeners();
   }
 
@@ -125,6 +139,7 @@ class CartProvider with ChangeNotifier {
 
   void logout() {
     _currentUser = null;
+    _selectedTabIndex = 0;
     _items.clear();
     notifyListeners();
   }
