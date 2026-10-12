@@ -4,6 +4,8 @@ import Product from '../models/Product.js';
 import Category from '../models/Category.js';
 import Order from '../models/Order.js';
 import Driver from '../models/Driver.js';
+import Store from '../models/Store.js';
+import StoreStaff from '../models/StoreStaff.js';
 
 const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URL || process.env.MONGO_PRIVATE_URL || 'mongodb://127.0.0.1:27017/kiranabazar';
 
@@ -39,6 +41,19 @@ const SEED_USERS = [
     status: 'Active',
     shopName: 'Sharma General & Grocery Store',
     address: 'Shop 14, Main Market, Sector 15'
+  },
+  {
+    id: 'rider_1',
+    name: 'Ramesh Kumar (Rider)',
+    email: 'rider@kiranabazar.com',
+    phone: '+91 98123 45678',
+    password: 'rider123',
+    role: 'Delivery Partner',
+    status: 'Available',
+    vehicle: 'EV Scooter (DL-01-AB-1234)',
+    rating: 4.9,
+    totalDeliveries: 482,
+    address: 'Hub #1, Sector 15 Dark Store'
   }
 ];
 
@@ -181,19 +196,23 @@ const SEED_ORDERS = [
     customerName: 'Rahul Sharma',
     customerPhone: '+91 98989 12345',
     address: 'Flat 402, Green Valley Apts, Sector 62',
+    storeId: 'store_1',
+    orderStatus: 'OUT_FOR_DELIVERY',
+    status: 'Out for Delivery',
     items: [
-      { id: 'prod_1', name: 'Amul Taaza Toned Fresh Milk', quantity: 2, price: 27, unit: '500 ml' },
-      { id: 'prod_6', name: 'Lay\'s India\'s Magic Masala Chips', quantity: 1, price: 50, unit: '115 g' }
+      { productId: 'prod_1', id: 'prod_1', name: 'Amul Taaza Toned Fresh Milk', quantity: 2, unitPrice: 27, price: 27, total: 54, unit: '500 ml' },
+      { productId: 'prod_6', id: 'prod_6', name: 'Lay\'s India\'s Magic Masala Chips', quantity: 1, unitPrice: 50, price: 50, total: 50, unit: '115 g' }
     ],
     totalAmount: 104,
     deliveryFee: 15,
     tip: 10,
     grandTotal: 129,
     paymentMethod: 'UPI',
-    status: 'Out for Delivery',
-    driverId: 'drv_1',
-    driverName: 'Ramesh Kumar',
-    driverPhone: '+91 98765 43210'
+    paymentStatus: 'SUCCESS',
+    driverId: 'rider_1',
+    driverName: 'Ramesh Kumar (Rider)',
+    driverPhone: '+91 98123 45678',
+    deliveryPartnerId: 'rider_1'
   }
 ];
 
@@ -207,41 +226,109 @@ export async function connectDB() {
     });
     isMongoConnected = true;
     console.log('✅ Connected to MongoDB at', MONGODB_URI);
-
-    // Auto-seed initial data
-    await seedInitialData();
   } catch (err) {
-    console.warn('⚠️ Could not connect to local MongoDB server:', err.message);
+    console.warn('⚠️ Could not connect to MongoDB server:', err.message);
     console.warn('⚡ Using memory/local storage fallback for Kirana Bazar API server.');
     isMongoConnected = false;
+    return;
+  }
+
+  // Auto-seed initial data safely outside the connection try/catch
+  try {
+    await seedInitialData();
+  } catch (seedErr) {
+    console.warn('⚠️ Seeding warning:', seedErr.message);
   }
 }
 
 async function seedInitialData() {
   if (!isMongoConnected) return;
-  
-  const userCount = await User.countDocuments();
-  if (userCount === 0) {
-    await User.insertMany(SEED_USERS);
+
+  // 1. Seed or Upsert Essential Users
+  for (const user of SEED_USERS) {
+    try {
+      const exists = await User.findOne({ email: user.email.toLowerCase() });
+      if (!exists) {
+        await User.create(user);
+        console.log(`👤 Seeded user: ${user.name} (${user.role})`);
+      }
+    } catch (e) {
+      console.warn(`User seed warning for ${user.email}:`, e.message);
+    }
   }
 
-  const catCount = await Category.countDocuments();
-  if (catCount === 0) {
-    await Category.insertMany(SEED_CATEGORIES);
+  // 2. Seed Stores
+  try {
+    const storeCount = await Store.countDocuments();
+    if (storeCount === 0) {
+      await Store.create({
+        id: 'store_1',
+        name: 'Sharma Kirana Store',
+        managerId: 'shop_1',
+        address: 'Shop 14, Main Market, Sector 15',
+        location: { lat: 28.4595, lng: 77.0266 },
+        active: true
+      });
+      console.log('🏪 Seeded default store: Sharma Kirana Store (store_1)');
+    }
+  } catch (e) {
+    console.warn('Store seed warning:', e.message);
   }
 
-  const prodCount = await Product.countDocuments();
-  if (prodCount === 0) {
-    await Product.insertMany(SEED_PRODUCTS);
+  // 3. Seed StoreStaff
+  try {
+    const staffCount = await StoreStaff.countDocuments();
+    if (staffCount === 0) {
+      await StoreStaff.create({
+        id: 'staff_1',
+        userId: 'shop_1',
+        storeId: 'store_1',
+        role: 'STORE_MANAGER',
+        status: 'ACTIVE'
+      });
+      console.log('👥 Seeded store staff: shop_1 -> store_1 (STORE_MANAGER)');
+    }
+  } catch (e) {
+    console.warn('StoreStaff seed warning:', e.message);
   }
 
-  const driverCount = await Driver.countDocuments();
-  if (driverCount === 0) {
-    await Driver.insertMany(SEED_DRIVERS);
+  // 4. Seed Categories
+  try {
+    const catCount = await Category.countDocuments();
+    if (catCount === 0) {
+      await Category.insertMany(SEED_CATEGORIES);
+    }
+  } catch (e) {
+    console.warn('Category seed warning:', e.message);
   }
 
-  const orderCount = await Order.countDocuments();
-  if (orderCount === 0) {
-    await Order.insertMany(SEED_ORDERS);
+  // 5. Seed Products
+  try {
+    const prodCount = await Product.countDocuments();
+    if (prodCount === 0) {
+      await Product.insertMany(SEED_PRODUCTS);
+    }
+  } catch (e) {
+    console.warn('Product seed warning:', e.message);
+  }
+
+  // 6. Seed Drivers
+  try {
+    const driverCount = await Driver.countDocuments();
+    if (driverCount === 0) {
+      await Driver.insertMany(SEED_DRIVERS);
+    }
+  } catch (e) {
+    console.warn('Driver seed warning:', e.message);
+  }
+
+  // 7. Seed Orders
+  try {
+    const orderCount = await Order.countDocuments();
+    if (orderCount === 0) {
+      await Order.insertMany(SEED_ORDERS);
+    }
+  } catch (e) {
+    console.warn('Order seed warning:', e.message);
   }
 }

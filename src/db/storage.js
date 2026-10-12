@@ -68,6 +68,19 @@ const INITIAL_USERS = [
     shopName: 'Verma Organic & Fresh Mart',
     address: 'Shop 8, Commercial Complex, Sector 62',
     createdAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString()
+  },
+  {
+    id: 'rider_1',
+    name: 'Ramesh Kumar (Rider)',
+    email: 'rider@kiranabazar.com',
+    phone: '+91 98123 45678',
+    password: 'rider123',
+    role: 'Delivery Partner',
+    status: 'Available',
+    shopName: '',
+    vehicle: 'EV Scooter (DL-01-AB-1234)',
+    address: 'Hub #1, Sector 15 Dark Store',
+    createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
   }
 ];
 

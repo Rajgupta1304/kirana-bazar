@@ -39,6 +39,18 @@ let memoryUsers = [
     status: 'Active',
     shopName: 'Sharma General & Grocery Store',
     address: 'Shop 14, Main Market, Sector 15'
+  },
+  {
+    id: 'rider_1',
+    name: 'Ramesh Kumar (Rider)',
+    email: 'rider@kiranabazar.com',
+    phone: '+91 98123 45678',
+    password: 'rider123',
+    role: 'Delivery Partner',
+    status: 'Available',
+    shopName: '',
+    vehicle: 'EV Scooter (DL-01-AB-1234)',
+    address: 'Hub #1, Sector 15 Dark Store'
   }
 ];
 
@@ -52,14 +64,20 @@ router.post('/login', async (req, res) => {
 
     let foundUser;
     if (isMongoConnected) {
-      foundUser = await User.findOne({
-        $or: [
-          { email: emailOrPhone.toLowerCase() },
-          { phone: emailOrPhone }
-        ],
-        password
-      });
-    } else {
+      try {
+        foundUser = await User.findOne({
+          $or: [
+            { email: emailOrPhone.toLowerCase() },
+            { phone: emailOrPhone }
+          ],
+          password
+        });
+      } catch (err) {
+        console.warn('Mongo findOne error in auth login:', err.message);
+      }
+    }
+
+    if (!foundUser) {
       foundUser = memoryUsers.find(
         u => (u.email.toLowerCase() === emailOrPhone.toLowerCase() || u.phone.includes(emailOrPhone)) &&
              u.password === password
