@@ -12,25 +12,25 @@ const router = express.Router();
 // GET /api/analytics
 router.get('/', async (req, res) => {
   try {
-    const { shopkeeperId } = req.query;
+    const targetStoreId = (req.query.storeId && req.query.storeId !== 'all') ? req.query.storeId : (req.query.shopkeeperId || null);
     if (isMongoConnected) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
       // Aggregations based on store context
-      let orderQuery = shopkeeperId ? { storeId: shopkeeperId } : {};
+      let orderQuery = targetStoreId ? { $or: [{ storeId: targetStoreId }, { shopkeeperId: targetStoreId }] } : {};
       const orders = await Order.find(orderQuery);
       
       const todaysOrders = orders.filter(o => new Date(o.createdAt) >= today);
       const todaysRevenue = todaysOrders.reduce((sum, o) => sum + (o.grandTotal || o.totalAmount || 0), 0);
       
-      const pendingOrders = orders.filter(o => o.status === 'PLACED' || o.status === 'PENDING').length;
+      const pendingOrders = orders.filter(o => ['PLACED', 'PENDING', 'ACCEPTED', 'CONFIRMED', 'PICKING', 'PREPARING'].includes(o.status)).length;
       const cancelledOrders = orders.filter(o => o.status === 'CANCELLED').length;
       
       // Stock
       let lowStockCount = 0;
-      if (shopkeeperId) {
-        lowStockCount = await StoreInventory.countDocuments({ storeId: shopkeeperId, stock: { $lte: 10 } });
+      if (targetStoreId) {
+        lowStockCount = await StoreInventory.countDocuments({ storeId: targetStoreId, stock: { $lte: 10 } });
       } else {
         lowStockCount = await StoreInventory.countDocuments({ stock: { $lte: 10 } });
       }
@@ -42,13 +42,47 @@ router.get('/', async (req, res) => {
       let totalDeliveryPartners = 0;
       let activeDeliveries = 0;
 
-      if (!shopkeeperId) {
+      if (!targetStoreId) {
         totalCustomers = await User.countDocuments({ role: 'Customer' });
         totalStores = await Store.countDocuments({});
         totalStoreManagers = await User.countDocuments({ role: 'Shopkeeper' });
         totalDeliveryPartners = await User.countDocuments({ role: 'Delivery Partner' });
         activeDeliveries = await DeliveryTask.countDocuments({ status: { $in: ['ACCEPTED', 'ARRIVED_AT_STORE', 'PICKED_UP', 'OUT_FOR_DELIVERY'] } });
       }
+
+      // Compute Branch-wise Breakdown for All Stores
+      const stores = await Store.find().sort({ createdAt: 1 });
+      const allOrders = targetStoreId ? await Order.find({}) : orders;
+      const storeStaffUsers = await User.find({ role: { $in: ['Shopkeeper', 'Store Manager'] } });
+
+      const branchBreakdown = await Promise.all(stores.map(async (st) => {
+        const storeOrders = allOrders.filter(o => o.storeId === st.id || o.shopkeeperId === st.id || o.shopkeeperId === st.managerId);
+        const storeTodaysOrders = storeOrders.filter(o => new Date(o.createdAt) >= today);
+        const storeRevenue = storeOrders.reduce((sum, o) => sum + (o.grandTotal || o.totalAmount || 0), 0);
+        const storePending = storeOrders.filter(o => ['PLACED', 'PENDING', 'ACCEPTED', 'CONFIRMED', 'PICKING', 'PREPARING'].includes(o.status)).length;
+        const storeDelivered = storeOrders.filter(o => o.status === 'DELIVERED').length;
+        const storeLowStock = await StoreInventory.countDocuments({ storeId: st.id, stock: { $lte: 10 } });
+        const storeTotalProducts = await StoreInventory.countDocuments({ storeId: st.id });
+        const manager = storeStaffUsers.find(u => u.id === st.managerId || u.storeId === st.id);
+
+        return {
+          id: st.id,
+          name: st.name,
+          address: st.address?.line1 || st.address || 'Local Market',
+          active: st.active !== false,
+          managerId: st.managerId,
+          managerName: manager?.name || 'Assigned Manager',
+          managerPhone: manager?.phone || '',
+          managerEmail: manager?.email || '',
+          totalOrders: storeOrders.length,
+          todaysOrders: storeTodaysOrders.length,
+          totalRevenue: storeRevenue,
+          pendingOrders: storePending,
+          deliveredOrders: storeDelivered,
+          lowStockCount: storeLowStock,
+          totalProducts: storeTotalProducts
+        };
+      }));
 
       return res.json({
         totalCustomers,
@@ -64,7 +98,8 @@ router.get('/', async (req, res) => {
         // Legacy compat
         totalSales: todaysRevenue,
         totalOrders: orders.length,
-        activeOrders: pendingOrders
+        activeOrders: pendingOrders,
+        branchBreakdown
       });
     } else {
       return res.json({

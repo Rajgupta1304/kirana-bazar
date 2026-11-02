@@ -261,9 +261,20 @@ export const apiClient = {
     return await res.json();
   },
 
-  async getAnalytics(shopkeeperId = '') {
+  async getStores() {
     try {
-      const url = shopkeeperId ? `${API_BASE_URL}/analytics?shopkeeperId=${shopkeeperId}` : `${API_BASE_URL}/analytics`;
+      const res = await fetch(`${API_BASE_URL}/stores`, { headers: getHeaders() });
+      if (!res.ok) throw new Error('API fetch failed');
+      return await res.json();
+    } catch (e) {
+      console.warn('Failed to fetch stores:', e);
+      return [];
+    }
+  },
+
+  async getAnalytics(storeId = '') {
+    try {
+      const url = storeId && storeId !== 'all' ? `${API_BASE_URL}/analytics?storeId=${storeId}` : `${API_BASE_URL}/analytics`;
       const res = await fetch(url, { headers: getHeaders() });
       return await res.json();
     } catch (e) {

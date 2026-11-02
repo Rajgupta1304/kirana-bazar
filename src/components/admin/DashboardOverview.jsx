@@ -1,114 +1,301 @@
-import React from 'react';
-import { IndianRupee, ShoppingBag, AlertTriangle, Bike, TrendingUp, PackageCheck, ArrowUpRight, Store, Users, MapPin, CheckCircle, XCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  IndianRupee,
+  ShoppingBag,
+  AlertTriangle,
+  Bike,
+  TrendingUp,
+  PackageCheck,
+  ArrowUpRight,
+  Store,
+  Users,
+  MapPin,
+  CheckCircle,
+  XCircle,
+  Building2,
+  ChevronRight,
+  Filter,
+  BarChart3,
+  Phone,
+  Layers
+} from 'lucide-react';
 
-export default function DashboardOverview({ analytics, orders, items, currentUser, onNavigate }) {
+export default function DashboardOverview({
+  analytics = {},
+  orders = [],
+  items = [],
+  stores = [],
+  users = [],
+  currentUser,
+  onNavigate
+}) {
   const isShopkeeper = currentUser?.role === 'Shopkeeper' || currentUser?.role === 'Store Manager';
-  const shopkeeperId = isShopkeeper ? currentUser?.id : null;
+  const isAdmin = currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin';
+  const defaultStoreId = isShopkeeper ? (currentUser?.storeId || 'store_1') : 'all';
 
-  // Filter items & orders specifically for this shopkeeper if role is Shopkeeper
-  const filteredItems = shopkeeperId
-    ? items.filter(i => i.shopkeeperId === shopkeeperId)
-    : items;
+  const [selectedBranchId, setSelectedBranchId] = useState(defaultStoreId);
 
-  const filteredOrders = shopkeeperId
-    ? orders.filter(o => o.shopkeeperId === shopkeeperId || o.items?.some(i => i.shopkeeperId === shopkeeperId))
-    : orders;
+  // Available fallback stores if DB stores list is loading
+  const availableStores = stores.length > 0 ? stores : [
+    { id: 'store_1', name: 'Sharma Kirana Store', address: 'Shop 14, Main Market, Sector 15', active: true, managerId: 'shop_1' },
+    { id: 'store_1791816482491', name: 'Verma Daily Mart', address: 'Booth 45, Market Complex', active: true, managerId: 'shop_1791816482473' }
+  ];
 
-  const recentOrders = filteredOrders.slice(0, 5);
-  const lowStockItems = filteredItems.filter(i => i.stock <= 10);
+  // Helper to resolve store name & details
+  const getStoreDetails = (storeId, shopkeeperId) => {
+    const found = availableStores.find(
+      s => s.id === storeId || s.id === shopkeeperId || (shopkeeperId && s.managerId === shopkeeperId)
+    );
+    if (found) return found;
+    return { id: storeId || 'store_1', name: 'Sharma Kirana Store', address: 'Main Dark Store Branch' };
+  };
 
-  // Compute stats dynamically from filtered data if analytics isn't already pre-filtered
-  const shopSales = shopkeeperId
-    ? filteredOrders.reduce((sum, o) => sum + (o.grandTotal || 0), 0)
-    : analytics.totalSales;
+  // Active store object if single branch selected
+  const activeBranch = selectedBranchId !== 'all'
+    ? availableStores.find(s => s.id === selectedBranchId) || availableStores[0]
+    : null;
 
-  const shopTotalOrders = shopkeeperId ? filteredOrders.length : analytics.totalOrders;
-  const shopActiveOrders = shopkeeperId
-    ? filteredOrders.filter(o => o.status !== 'Delivered' && o.status !== 'Cancelled').length
-    : analytics.activeOrders;
+  // Filter orders by selected branch
+  const filteredOrders = orders.filter(o => {
+    if (selectedBranchId === 'all') {
+      if (isShopkeeper) {
+        return (
+          o.shopkeeperId === currentUser?.id ||
+          o.storeId === currentUser?.storeId ||
+          o.items?.some(i => i.shopkeeperId === currentUser?.id)
+        );
+      }
+      return true;
+    }
+    const store = availableStores.find(s => s.id === selectedBranchId);
+    return (
+      o.storeId === selectedBranchId ||
+      o.shopkeeperId === selectedBranchId ||
+      (store?.managerId && o.shopkeeperId === store.managerId)
+    );
+  });
 
-  const shopLowStock = shopkeeperId ? lowStockItems.length : analytics.lowStockCount;
+  // Filter items by selected branch
+  const filteredItems = items.filter(i => {
+    if (selectedBranchId === 'all') {
+      if (isShopkeeper) {
+        return i.shopkeeperId === currentUser?.id || i.storeId === currentUser?.storeId;
+      }
+      return true;
+    }
+    return !i.storeId || i.storeId === selectedBranchId;
+  });
+
+  const recentOrders = filteredOrders.slice(0, 7);
+  const lowStockItems = filteredItems.filter(i => Number(i.stock) <= 10);
+
+  // Dynamic metrics calculation for currently selected view
+  const currentSales = filteredOrders.reduce((sum, o) => sum + (Number(o.grandTotal) || Number(o.totalAmount) || 0), 0);
+  const currentTotalOrders = filteredOrders.length;
+  const currentActiveOrders = filteredOrders.filter(o => !['DELIVERED', 'CANCELLED', 'REJECTED'].includes(o.status)).length;
+  const currentDeliveredOrders = filteredOrders.filter(o => o.status === 'DELIVERED').length;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todaysOrdersCount = filteredOrders.filter(o => new Date(o.createdAt) >= today).length || (selectedBranchId === 'all' ? (analytics.todaysOrders || filteredOrders.length) : filteredOrders.length);
   
-  const todaysOrdersCount = filteredOrders.length; 
   const newOrdersCount = filteredOrders.filter(o => ['PLACED', 'PENDING'].includes(o.status)).length;
   const pickingCount = filteredOrders.filter(o => ['CONFIRMED', 'PICKING', 'ACCEPTED', 'PREPARING'].includes(o.status)).length;
   const packedCount = filteredOrders.filter(o => o.status === 'PACKED').length;
-  const readyCount = filteredOrders.filter(o => ['READY_FOR_PICKUP', 'READY'].includes(o.status)).length;
-  const completedCount = filteredOrders.filter(o => o.status === 'DELIVERED').length;
-  const outOfStockCount = filteredItems.filter(i => i.stock <= 0).length;
+  const readyCount = filteredOrders.filter(o => ['READY_FOR_PICKUP', 'READY', 'ASSIGNED_TO_RIDER'].includes(o.status)).length;
+  const completedCount = currentDeliveredOrders;
+  const outOfStockCount = filteredItems.filter(i => Number(i.stock) <= 0).length;
 
+  // Compute Branch-wise Performance Data for all branches
+  const branchBreakdownData = availableStores.map(st => {
+    const storeOrders = orders.filter(
+      o => o.storeId === st.id || o.shopkeeperId === st.id || (st.managerId && o.shopkeeperId === st.managerId)
+    );
+    const storeTodaysOrders = storeOrders.filter(o => new Date(o.createdAt) >= today);
+    const storeRevenue = storeOrders.reduce((sum, o) => sum + (Number(o.grandTotal) || Number(o.totalAmount) || 0), 0);
+    const storePending = storeOrders.filter(o => !['DELIVERED', 'CANCELLED', 'REJECTED'].includes(o.status)).length;
+    const storeDelivered = storeOrders.filter(o => o.status === 'DELIVERED').length;
+    const storeLowStock = items.filter(i => (i.storeId === st.id || !i.storeId) && Number(i.stock) <= 10).length;
+    const storeManager = users.find(u => u.id === st.managerId || u.storeId === st.id);
+
+    return {
+      ...st,
+      managerName: storeManager?.name || 'Assigned Manager',
+      managerPhone: storeManager?.phone || '+91 98989 12345',
+      totalOrders: storeOrders.length,
+      todaysOrders: storeTodaysOrders.length,
+      revenue: storeRevenue,
+      pendingOrders: storePending,
+      deliveredOrders: storeDelivered,
+      lowStockCount: storeLowStock
+    };
+  });
+
+  const totalPlatformRevenue = branchBreakdownData.reduce((sum, b) => sum + b.revenue, 0) || currentSales || 1;
+
+  // Dynamic KPIs adapting to selected branch or consolidated view
   let kpis = [];
-  if (isShopkeeper) {
+  if (selectedBranchId !== 'all' || isShopkeeper) {
     kpis = [
       { title: "Today's Orders", value: todaysOrdersCount, icon: ShoppingBag, color: 'bg-blue-600 text-white', badgeColor: 'bg-blue-50 text-blue-700' },
       { title: 'New Orders', value: newOrdersCount, icon: AlertTriangle, color: 'bg-yellow-500 text-white', badgeColor: 'bg-yellow-50 text-yellow-800' },
-      { title: 'Picking', value: pickingCount, icon: PackageCheck, color: 'bg-indigo-500 text-white', badgeColor: 'bg-indigo-50 text-indigo-700' },
-      { title: 'Packed', value: packedCount, icon: PackageCheck, color: 'bg-purple-500 text-white', badgeColor: 'bg-purple-50 text-purple-700' },
-      { title: 'Ready for Pickup', value: readyCount, icon: Bike, color: 'bg-orange-500 text-white', badgeColor: 'bg-orange-50 text-orange-700' },
-      { title: 'Completed', value: completedCount, icon: CheckCircle, color: 'bg-green-500 text-white', badgeColor: 'bg-green-50 text-green-700' },
-      { title: 'Low Stock', value: shopLowStock, icon: AlertTriangle, color: 'bg-red-400 text-white', badgeColor: 'bg-red-50 text-red-700' },
-      { title: 'Out of Stock', value: outOfStockCount, icon: XCircle, color: 'bg-red-600 text-white', badgeColor: 'bg-red-50 text-red-800' },
-      { title: "Today's Sales", value: `₹${shopSales.toLocaleString()}`, icon: IndianRupee, color: 'bg-emerald-500 text-white', badgeColor: 'bg-emerald-50 text-emerald-700' }
+      { title: 'Picking & Prep', value: pickingCount, icon: PackageCheck, color: 'bg-indigo-500 text-white', badgeColor: 'bg-indigo-50 text-indigo-700' },
+      { title: 'Packed / Ready', value: packedCount + readyCount, icon: Bike, color: 'bg-purple-500 text-white', badgeColor: 'bg-purple-50 text-purple-700' },
+      { title: 'Completed', value: completedCount, icon: CheckCircle, color: 'bg-green-600 text-white', badgeColor: 'bg-green-50 text-green-700' },
+      { title: 'Branch Low Stock', value: lowStockItems.length, icon: AlertTriangle, color: 'bg-red-500 text-white', badgeColor: 'bg-red-50 text-red-700' },
+      { title: 'Out of Stock', value: outOfStockCount, icon: XCircle, color: 'bg-red-700 text-white', badgeColor: 'bg-red-50 text-red-800' },
+      { title: "Branch Sales (₹)", value: `₹${currentSales.toLocaleString()}`, icon: IndianRupee, color: 'bg-emerald-600 text-white', badgeColor: 'bg-emerald-50 text-emerald-700' }
     ];
   } else {
     kpis = [
-      { title: "Orders Today", value: analytics.todaysOrders || 0, icon: ShoppingBag, color: 'bg-blue-600 text-white', badgeColor: 'bg-blue-50 text-blue-700' },
-      { title: 'Pending Orders', value: analytics.pendingOrders || 0, icon: PackageCheck, color: 'bg-orange-500 text-white', badgeColor: 'bg-orange-50 text-orange-700' },
-      { title: 'Active Stores', value: analytics.totalStores || 0, icon: Store, color: 'bg-purple-500 text-white', badgeColor: 'bg-purple-50 text-purple-700' },
-      { title: 'Active Riders', value: analytics.totalDeliveryPartners || 0, icon: Bike, color: 'bg-pink-500 text-white', badgeColor: 'bg-pink-50 text-pink-700' },
-      { title: 'Low Stock Alerts', value: analytics.lowStockCount || 0, icon: AlertTriangle, color: 'bg-yellow-500 text-white', badgeColor: 'bg-yellow-50 text-yellow-700' },
-      { title: 'Failed Deliveries', value: analytics.failedDeliveries || 0, icon: XCircle, color: 'bg-red-500 text-white', badgeColor: 'bg-red-50 text-red-700' },
-      { title: 'Refund Requests', value: analytics.refundRequests || 0, icon: AlertTriangle, color: 'bg-red-600 text-white', badgeColor: 'bg-red-50 text-red-700' },
+      { title: "Orders Today (All)", value: todaysOrdersCount, icon: ShoppingBag, color: 'bg-blue-600 text-white', badgeColor: 'bg-blue-50 text-blue-700' },
+      { title: 'Pending Fulfillment', value: currentActiveOrders, icon: PackageCheck, color: 'bg-orange-500 text-white', badgeColor: 'bg-orange-50 text-orange-700' },
+      { title: 'Active Branches', value: availableStores.length, icon: Store, color: 'bg-purple-600 text-white', badgeColor: 'bg-purple-50 text-purple-700' },
+      { title: 'Active Riders', value: analytics.totalDeliveryPartners || users.filter(u => u.role === 'Delivery Partner').length || 5, icon: Bike, color: 'bg-pink-600 text-white', badgeColor: 'bg-pink-50 text-pink-700' },
+      { title: 'Low Stock Alerts', value: lowStockItems.length, icon: AlertTriangle, color: 'bg-yellow-500 text-white', badgeColor: 'bg-yellow-50 text-yellow-700' },
+      { title: 'Completed Orders', value: completedCount, icon: CheckCircle, color: 'bg-green-600 text-white', badgeColor: 'bg-green-50 text-green-700' },
+      { title: 'Total Network Sales', value: `₹${currentSales.toLocaleString()}`, icon: IndianRupee, color: 'bg-emerald-600 text-white', badgeColor: 'bg-emerald-50 text-emerald-700' }
     ];
   }
-
-  const storeDisplayName = isShopkeeper
-    ? (currentUser.shopName || `${currentUser.name}'s Kirana Store`)
-    : 'Platform Dark Store #402';
 
   return (
     <div className="space-y-6">
       
-      {/* Page Title */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* Page Title & Context Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-black text-gray-900 tracking-tight">
-              {isShopkeeper ? 'Store Manager Dashboard' : currentUser?.role === 'Super Admin' ? 'Super Admin Dashboard' : 'Admin Dashboard'}
+              {isShopkeeper ? 'Store Manager Dashboard' : 'Admin Operations Dashboard'}
             </h1>
-            {isShopkeeper && (
-              <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-lg text-xs font-black flex items-center gap-1 border border-amber-200">
-                <Store className="w-3.5 h-3.5" /> Individual Store View
-              </span>
-            )}
-            {!isShopkeeper && (
-              <span className="px-2.5 py-1 bg-indigo-100 text-indigo-800 rounded-lg text-xs font-black flex items-center gap-1 border border-indigo-200">
-                Platform Overview
-              </span>
-            )}
+            <span className="px-2.5 py-1 bg-amber-100 text-amber-900 rounded-lg text-xs font-black flex items-center gap-1 border border-amber-200">
+              <Building2 className="w-3.5 h-3.5" /> Branch-Wise Mode
+            </span>
           </div>
-          <p className="text-xs text-gray-500">
-            {isShopkeeper 
-              ? "Real-time overview of your store's inventory, sales metrics, and delivery pipeline" 
-              : "Global platform metrics and quick-commerce operations"}
+          <p className="text-xs text-gray-500 mt-0.5">
+            Real-time branch inventory, order routing, and revenue breakdown across physical dark stores
           </p>
         </div>
 
-        <div className="flex items-center gap-2 bg-green-50 text-green-800 border border-green-200 px-3 py-1.5 rounded-xl text-xs font-bold self-start sm:self-auto">
-          <span className="w-2 h-2 rounded-full bg-green-600 animate-ping"></span>
-          <span>{storeDisplayName} (Online)</span>
+        {/* Global Live Status */}
+        <div className="flex items-center gap-2 bg-emerald-50 text-emerald-800 border border-emerald-200 px-3.5 py-1.5 rounded-xl text-xs font-bold self-start md:self-auto shadow-sm">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+          <span>{availableStores.length} Dark Stores Connected (Online)</span>
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-${isShopkeeper ? '4' : '5'} gap-4`}>
+      {/* Admin Branch Selector Navigation */}
+      {isAdmin && (
+        <div className="bg-white rounded-2xl p-3 border border-gray-200/80 shadow-sm space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-amber-600" />
+              <span className="text-xs font-black text-gray-800 uppercase tracking-wider">
+                Select Branch / Dark Store:
+              </span>
+            </div>
+            <span className="text-[11px] text-gray-500 font-semibold">
+              Showing: {selectedBranchId === 'all' ? 'All Branches Combined' : activeBranch?.name}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* All Branches Tab */}
+            <button
+              onClick={() => setSelectedBranchId('all')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-black transition flex items-center gap-2 ${
+                selectedBranchId === 'all'
+                  ? 'bg-gray-900 text-white shadow-md shadow-gray-900/20'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200/80 hover:text-gray-900'
+              }`}
+            >
+              <Building2 className="w-4 h-4" />
+              <span>All Branches</span>
+              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-extrabold ${selectedBranchId === 'all' ? 'bg-gray-700 text-amber-300' : 'bg-gray-200 text-gray-700'}`}>
+                {availableStores.length}
+              </span>
+            </button>
+
+            {/* Individual Branch Tabs */}
+            {availableStores.map(store => {
+              const isSelected = selectedBranchId === store.id;
+              const storeOrdersCount = orders.filter(
+                o => o.storeId === store.id || o.shopkeeperId === store.id || (store.managerId && o.shopkeeperId === store.managerId)
+              ).length;
+
+              return (
+                <button
+                  key={store.id}
+                  onClick={() => setSelectedBranchId(store.id)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 border ${
+                    isSelected
+                      ? 'bg-amber-400 text-gray-950 border-amber-500 font-black shadow-md shadow-amber-400/20'
+                      : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <Store className="w-3.5 h-3.5" />
+                  <span>{store.name}</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-extrabold ${isSelected ? 'bg-amber-900/20 text-gray-950' : 'bg-gray-100 text-gray-600'}`}>
+                    {storeOrdersCount} orders
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Branch Context Banner (When an Individual Branch is selected) */}
+      {selectedBranchId !== 'all' && activeBranch && (
+        <div className="bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 border border-amber-200 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-amber-400 text-gray-950 flex items-center justify-center font-black shadow-md shadow-amber-400/30 flex-shrink-0">
+              <Store className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-black text-gray-900">{activeBranch.name}</h2>
+                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[10px] font-extrabold border border-emerald-200">
+                  ACTIVE
+                </span>
+                <span className="text-[10px] font-mono text-gray-500">ID: {activeBranch.id}</span>
+              </div>
+              <p className="text-xs text-gray-600 flex items-center gap-1.5 mt-0.5">
+                <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                <span>{activeBranch.address?.line1 || activeBranch.address || 'Local Market'}</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start md:self-auto">
+            <button
+              onClick={() => setSelectedBranchId('all')}
+              className="px-3 py-1.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-xl text-xs font-bold transition shadow-sm"
+            >
+              ← Back to All Branches
+            </button>
+            <button
+              onClick={() => onNavigate('orders')}
+              className="px-3.5 py-1.5 bg-gray-900 hover:bg-black text-white rounded-xl text-xs font-extrabold transition shadow-sm flex items-center gap-1"
+            >
+              <span>View Branch Orders</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* KPI Cards Grid (Dynamic to Selected Branch) */}
+      <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4`}>
         {kpis.map((kpi, idx) => {
           const Icon = kpi.icon;
           return (
-            <div key={idx} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition space-y-3">
+            <div key={idx} className="bg-white rounded-2xl p-4 sm:p-5 border border-gray-100 shadow-sm hover:shadow-md transition space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider line-clamp-1 pr-1">{kpi.title}</span>
-                <div className={`p-2 rounded-xl ${kpi.color}`}>
+                <span className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider line-clamp-1 pr-1">
+                  {kpi.title}
+                </span>
+                <div className={`p-2.5 rounded-xl ${kpi.color}`}>
                   <Icon className="w-4 h-4" />
                 </div>
               </div>
@@ -126,31 +313,171 @@ export default function DashboardOverview({ analytics, orders, items, currentUse
         })}
       </div>
 
-      {/* Grid Content */}
+      {/* Branch-Wise Operations & Performance Matrix (Shown for Admin) */}
+      {isAdmin && selectedBranchId === 'all' && (
+        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-3">
+            <div>
+              <h3 className="font-black text-lg text-gray-900 flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-amber-500" />
+                Branch-Wise Performance & Operations Matrix
+              </h3>
+              <p className="text-xs text-gray-500">
+                Direct comparative overview of sales, live order pipelines, and stock status across all dark stores
+              </p>
+            </div>
+            <button
+              onClick={() => onNavigate('stores')}
+              className="text-xs font-black text-green-700 hover:text-green-800 flex items-center gap-1 self-start sm:self-auto"
+            >
+              <span>Manage Branches</span> <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Branch Cards Matrix */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {branchBreakdownData.map(branch => {
+              const revenueShare = totalPlatformRevenue > 0 ? Math.round((branch.revenue / totalPlatformRevenue) * 100) : 0;
+              return (
+                <div
+                  key={branch.id}
+                  className="bg-gradient-to-b from-gray-50/70 to-white rounded-2xl p-4 sm:p-5 border border-gray-200/80 shadow-sm hover:border-amber-300 transition space-y-4 flex flex-col justify-between"
+                >
+                  <div>
+                    {/* Branch Header */}
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold flex-shrink-0">
+                          <Store className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-extrabold text-sm text-gray-900">{branch.name}</h4>
+                          <span className="text-[10px] font-mono text-gray-500">ID: {branch.id}</span>
+                        </div>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
+                        branch.active ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'
+                      }`}>
+                        {branch.active ? 'ACTIVE' : 'SUSPENDED'}
+                      </span>
+                    </div>
+
+                    {/* Location & Manager Info */}
+                    <div className="space-y-1 text-xs text-gray-600 bg-white p-2.5 rounded-xl border border-gray-100">
+                      <p className="flex items-center gap-1.5 truncate">
+                        <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                        <span className="truncate">{branch.address}</span>
+                      </p>
+                      <p className="flex items-center gap-1.5 truncate">
+                        <Users className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                        <span>Manager: <strong className="text-gray-800">{branch.managerName}</strong> ({branch.managerPhone})</span>
+                      </p>
+                    </div>
+
+                    {/* Key Branch Stats Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 text-center">
+                      <div className="bg-white p-2 rounded-xl border border-gray-100">
+                        <span className="text-[10px] font-bold text-gray-400 block uppercase">Revenue</span>
+                        <span className="text-sm font-black text-emerald-700">₹{branch.revenue.toLocaleString()}</span>
+                      </div>
+                      <div className="bg-white p-2 rounded-xl border border-gray-100">
+                        <span className="text-[10px] font-bold text-gray-400 block uppercase">Today / Total</span>
+                        <span className="text-sm font-black text-blue-700">{branch.todaysOrders} / {branch.totalOrders}</span>
+                      </div>
+                      <div className="bg-white p-2 rounded-xl border border-gray-100">
+                        <span className="text-[10px] font-bold text-gray-400 block uppercase">In-Pipeline</span>
+                        <span className={`text-sm font-black ${branch.pendingOrders > 0 ? 'text-amber-600' : 'text-gray-700'}`}>
+                          {branch.pendingOrders}
+                        </span>
+                      </div>
+                      <div className="bg-white p-2 rounded-xl border border-gray-100">
+                        <span className="text-[10px] font-bold text-gray-400 block uppercase">Low Stock</span>
+                        <span className={`text-sm font-black ${branch.lowStockCount > 0 ? 'text-red-600' : 'text-gray-700'}`}>
+                          {branch.lowStockCount}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Revenue Contribution Progress Bar */}
+                    <div className="mt-3 space-y-1">
+                      <div className="flex justify-between text-[11px] font-bold text-gray-500">
+                        <span>Network Revenue Share</span>
+                        <span className="text-gray-900 font-extrabold">{revenueShare}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
+                        <div
+                          className="bg-gradient-to-r from-amber-400 to-yellow-500 h-full rounded-full transition-all duration-500"
+                          style={{ width: `${Math.max(5, revenueShare)}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Branch Action Buttons */}
+                  <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                    <button
+                      onClick={() => setSelectedBranchId(branch.id)}
+                      className="flex-1 py-2 bg-amber-400 hover:bg-amber-300 text-gray-950 font-black rounded-xl text-xs transition text-center shadow-sm"
+                    >
+                      Filter Dashboard to this Branch ➔
+                    </button>
+                    <button
+                      onClick={() => onNavigate('items')}
+                      className="px-3 py-2 border border-gray-200 hover:bg-gray-100 rounded-xl text-xs font-bold text-gray-700 transition"
+                      title="Manage Branch Inventory"
+                    >
+                      <Layers className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Grid Content: Recent Orders & Restock Alerts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Recent Orders Table */}
         <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-gray-100 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="font-extrabold text-base text-gray-900">
-              {isShopkeeper ? "Your Store's Recent Orders" : "Platform Recent Orders"}
-            </h3>
+            <div>
+              <h3 className="font-extrabold text-base text-gray-900">
+                {selectedBranchId === 'all' ? 'Recent Orders Across Branches' : `${activeBranch?.name} - Recent Orders`}
+              </h3>
+              <p className="text-[11px] text-gray-500">
+                {selectedBranchId === 'all' ? 'All live orders tagged by fulfilling branch' : `Showing orders strictly for ${activeBranch?.name}`}
+              </p>
+            </div>
             <button
               onClick={() => onNavigate('orders')}
               className="text-xs font-bold text-green-700 hover:text-green-800 flex items-center gap-1"
             >
-              Fulfillment Board <ArrowUpRight className="w-3.5 h-3.5" />
+              <span>Fulfillment Board</span> <ArrowUpRight className="w-3.5 h-3.5" />
             </button>
           </div>
 
           {recentOrders.length === 0 ? (
-            <p className="text-xs text-gray-400 py-6 text-center">No orders recorded for this store yet.</p>
+            <div className="text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+              <ShoppingBag className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+              <p className="text-xs text-gray-500 font-bold">No orders recorded for this branch yet.</p>
+              {selectedBranchId !== 'all' && (
+                <button
+                  onClick={() => setSelectedBranchId('all')}
+                  className="mt-2 text-xs text-amber-700 font-extrabold hover:underline"
+                >
+                  View all branches instead
+                </button>
+              )}
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
                 <thead className="bg-gray-50 text-gray-500 font-bold uppercase text-[10px]">
                   <tr>
                     <th className="p-2.5 rounded-l-lg">Order ID</th>
+                    <th className="p-2.5">Branch / Store</th>
                     <th className="p-2.5">Customer</th>
                     <th className="p-2.5">Items</th>
                     <th className="p-2.5">Total</th>
@@ -158,94 +485,117 @@ export default function DashboardOverview({ analytics, orders, items, currentUse
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {recentOrders.map((ord) => (
-                    <tr key={ord.id} className="hover:bg-gray-50/80 transition">
-                      <td className="p-2.5 font-bold text-gray-900">#{ord.id}</td>
-                      <td className="p-2.5 text-gray-700">{ord.customerName}</td>
-                      <td className="p-2.5 text-gray-500">{ord.items?.length || 0} items</td>
-                      <td className="p-2.5 font-extrabold text-gray-900">₹{ord.grandTotal}</td>
-                      <td className="p-2.5">
-                        <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                          ord.status === 'Delivered'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-yellow-100 text-yellow-800 animate-pulse'
-                        }`}>
-                          {ord.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {recentOrders.map((ord) => {
+                    const storeInfo = getStoreDetails(ord.storeId, ord.shopkeeperId);
+                    return (
+                      <tr key={ord.id || ord._id} className="hover:bg-gray-50/80 transition">
+                        <td className="p-2.5 font-bold text-gray-900">#{ord.id}</td>
+                        <td className="p-2.5">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-900 border border-amber-200 rounded-md font-extrabold text-[10px]">
+                            <Store className="w-3 h-3 text-amber-600" />
+                            {storeInfo.name}
+                          </span>
+                        </td>
+                        <td className="p-2.5 text-gray-700 font-medium">{ord.customerName}</td>
+                        <td className="p-2.5 text-gray-500">{ord.items?.length || 0} items</td>
+                        <td className="p-2.5 font-extrabold text-gray-900">₹{ord.grandTotal || ord.totalAmount}</td>
+                        <td className="p-2.5">
+                          <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                            ord.status === 'DELIVERED'
+                              ? 'bg-green-100 text-green-800'
+                              : ['PLACED', 'PENDING'].includes(ord.status)
+                              ? 'bg-yellow-100 text-yellow-800 animate-pulse'
+                              : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            {ord.status}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
         </div>
 
-        {/* Low Stock Alerts */}
+        {/* Low Stock Alerts (Branch-aware) */}
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="font-extrabold text-base text-gray-900 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-red-500" />
-              Low Stock Restock Alerts
-            </h3>
+            <div>
+              <h3 className="font-extrabold text-base text-gray-900 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-500" />
+                Low Stock Alerts
+              </h3>
+              <p className="text-[11px] text-gray-500">
+                {selectedBranchId === 'all' ? 'Items requiring restock across branches' : `Restock alerts for ${activeBranch?.name}`}
+              </p>
+            </div>
             {onNavigate && (
               <button
                 onClick={() => onNavigate('items')}
                 className="text-xs font-bold text-green-700 hover:text-green-800"
               >
-                Inventory Manager ➔
+                Inventory ➔
               </button>
             )}
           </div>
 
           {lowStockItems.length === 0 ? (
             <div className="bg-green-50 text-green-800 p-4 rounded-xl text-xs font-medium text-center">
-              🎉 All products in your store are well stocked above 10 units!
+              🎉 All products in this branch are well stocked above 10 units!
             </div>
           ) : (
-            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-              {lowStockItems.map((prod) => (
-                <div key={prod.id} className="flex items-center justify-between p-2.5 rounded-xl border border-red-100 bg-red-50/50">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <img 
-                      src={prod.image} 
-                      alt={prod.name}
-                      className="w-9 h-9 object-cover rounded-lg bg-white border" 
-                    />
-                    <div className="min-w-0">
-                      <h4 className="font-bold text-xs text-gray-900 truncate">{prod.name}</h4>
-                      <p className="text-[10px] text-gray-500">{prod.unit}</p>
+            <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
+              {lowStockItems.map((prod) => {
+                const storeInfo = getStoreDetails(prod.storeId, prod.shopkeeperId);
+                return (
+                  <div key={prod.id} className="flex items-center justify-between p-2.5 rounded-xl border border-red-100 bg-red-50/50">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <img 
+                        src={prod.image} 
+                        alt={prod.name}
+                        className="w-9 h-9 object-cover rounded-lg bg-white border flex-shrink-0" 
+                      />
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-xs text-gray-900 truncate">{prod.name}</h4>
+                        <p className="text-[10px] text-gray-500">{prod.unit} • {storeInfo.name}</p>
+                      </div>
                     </div>
-                  </div>
 
-                  <span className="font-black text-xs text-red-700 bg-red-100 px-2 py-1 rounded-lg">
-                    {prod.stock} left
-                  </span>
-                </div>
-              ))}
+                    <span className="font-black text-xs text-red-700 bg-red-100 px-2 py-1 rounded-lg flex-shrink-0">
+                      {prod.stock} left
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
 
       </div>
 
-      {/* Product Revenue & Category Breakdown Section */}
+      {/* Product Revenue & Category Breakdown Section (Branch-aware) */}
       <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm space-y-4">
         <div className="flex items-center justify-between border-b pb-3">
           <div>
             <h3 className="font-extrabold text-base text-gray-900 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-emerald-600" />
-              Store Product Revenue & Performance
+              Branch Product Revenue & Performance
             </h3>
-            <p className="text-xs text-gray-500">Track total earnings and units sold for your store's inventory</p>
+            <p className="text-xs text-gray-500">
+              {selectedBranchId === 'all'
+                ? 'Product earnings and units sold across all branches'
+                : `Product performance specifically for ${activeBranch?.name}`}
+            </p>
           </div>
           <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl">
-            Store Performance
+            {selectedBranchId === 'all' ? 'All Stores Performance' : activeBranch?.name}
           </span>
         </div>
 
         {filteredItems.length === 0 ? (
-          <p className="text-xs text-gray-400 py-4 text-center">No products listed for this store yet.</p>
+          <p className="text-xs text-gray-400 py-4 text-center">No products listed for this branch yet.</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredItems.slice(0, 6).map((item) => {
@@ -255,7 +605,6 @@ export default function DashboardOverview({ analytics, orders, items, currentUse
               
               const totalUnitsSold = itemOrders.reduce((sum, i) => sum + (Number(i.quantity) || 1), 0);
               
-              // Calculate actual revenue from order items, with fallback to item price
               const orderRevenue = itemOrders.reduce((sum, i) => {
                 const qty = Number(i.quantity) || 1;
                 const price = Number(i.price) || Number(i.sellingPrice) || Number(item.price) || Number(item.mrp) || 0;
@@ -264,6 +613,7 @@ export default function DashboardOverview({ analytics, orders, items, currentUse
 
               const unitPrice = Number(item.price) || Number(item.sellingPrice) || Number(itemOrders[0]?.price) || Number(itemOrders[0]?.sellingPrice) || Number(item.mrp) || 0;
               const totalRevenueGenerated = orderRevenue > 0 ? orderRevenue : (totalUnitsSold * unitPrice);
+              const storeInfo = getStoreDetails(item.storeId, item.shopkeeperId);
 
               return (
                 <div key={item.id} className="p-3.5 bg-gray-50/80 rounded-2xl border border-gray-200/80 flex items-center justify-between hover:bg-gray-100/80 transition">
@@ -276,7 +626,7 @@ export default function DashboardOverview({ analytics, orders, items, currentUse
                     <div className="min-w-0">
                       <h4 className="font-extrabold text-xs text-gray-900 truncate">{item.name}</h4>
                       <span className="text-[10px] text-gray-500 block truncate">{item.categoryName} • ₹{unitPrice > 0 ? unitPrice : '—'}</span>
-                      <span className="text-[10px] text-amber-800 font-bold">Store: {item.shopkeeperName || storeDisplayName}</span>
+                      <span className="text-[10px] text-amber-800 font-bold block truncate">Branch: {storeInfo.name}</span>
                     </div>
                   </div>
 

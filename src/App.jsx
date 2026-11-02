@@ -27,6 +27,7 @@ export default function App() {
   const [orders, setOrders] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [users, setUsers] = useState([]);
+  const [stores, setStores] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [analytics, setAnalytics] = useState({ totalSales: 0, totalOrders: 0, activeOrders: 0, lowStockCount: 0, totalUsers: 0 });
   const [apiConnected, setApiConnected] = useState(false);
@@ -45,13 +46,14 @@ export default function App() {
       const isShopkeeper = user?.role === 'Shopkeeper';
       const storeId = isShopkeeper ? (user?.storeId || 'store_1') : ''; 
 
-      const [apiProds, apiCats, apiOrds, apiUsers, apiStats, apiDrivers] = await Promise.all([
+      const [apiProds, apiCats, apiOrds, apiUsers, apiStats, apiDrivers, apiStores] = await Promise.all([
         apiClient.getProducts(storeId),
         apiClient.getCategories(),
         apiClient.getOrders(storeId),
         apiClient.getUsers(),
         apiClient.getAnalytics(storeId),
-        apiClient.getDrivers(storeId)
+        apiClient.getDrivers(storeId),
+        apiClient.getStores()
       ]);
 
       if (apiProds) {
@@ -76,6 +78,15 @@ export default function App() {
       if (apiDrivers) setDrivers(apiDrivers);
       else setDrivers(db.getDrivers());
 
+      if (apiStores && apiStores.length > 0) {
+        setStores(apiStores);
+      } else {
+        setStores([
+          { id: 'store_1', name: 'Sharma Kirana Store', address: 'Shop 14, Main Market, Sector 15', active: true },
+          { id: 'store_1791816482491', name: 'Verma Daily Mart', address: 'Booth 45, Market Complex', active: true }
+        ]);
+      }
+
     } catch (e) {
       console.warn('API error, using local database:', e);
       setItems(db.getItems());
@@ -84,6 +95,10 @@ export default function App() {
       setDrivers(db.getDrivers());
       setUsers(db.getUsers());
       setAnalytics(db.getAnalytics());
+      setStores([
+        { id: 'store_1', name: 'Sharma Kirana Store', address: 'Shop 14, Main Market, Sector 15', active: true },
+        { id: 'store_1791816482491', name: 'Verma Daily Mart', address: 'Booth 45, Market Complex', active: true }
+      ]);
     }
   };
 
@@ -372,6 +387,8 @@ export default function App() {
                     analytics={analytics}
                     orders={orders}
                     items={items}
+                    stores={stores}
+                    users={users}
                     currentUser={currentUser}
                     onNavigate={(tab) => {
                       const role = currentUser.role;
