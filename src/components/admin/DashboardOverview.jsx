@@ -87,31 +87,45 @@ export default function DashboardOverview({
   });
 
   const recentOrders = filteredOrders.slice(0, 7);
-  const lowStockItems = filteredItems.filter(i => Number(i.stock) <= 10);
+  const lowStockItems = filteredItems.filter(i => Number(i.stock) <= 10 && Number(i.stock) > 0);
+  const outOfStockCount = filteredItems.filter(i => Number(i.stock) <= 0).length;
 
-  // Dynamic metrics calculation for currently selected view
-  const currentSales = filteredOrders.reduce((sum, o) => sum + (Number(o.grandTotal) || Number(o.totalAmount) || 0), 0);
+  // Helper to accurately identify if a date is on the same calendar day (local time)
+  const isDateToday = (dateValue) => {
+    if (!dateValue) return false;
+    const d = new Date(dateValue);
+    if (isNaN(d.getTime())) return false;
+    const now = new Date();
+    return (
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate()
+    );
+  };
+
+  // Real-time metrics calculations
+  const todaysOrders = filteredOrders.filter(o => isDateToday(o.createdAt));
+  const todaysOrdersCount = todaysOrders.length;
+  const todaysRevenue = todaysOrders.reduce((sum, o) => sum + (Number(o.grandTotal) || Number(o.totalAmount) || 0), 0);
+
   const currentTotalOrders = filteredOrders.length;
+  const currentSales = filteredOrders.reduce((sum, o) => sum + (Number(o.grandTotal) || Number(o.totalAmount) || 0), 0);
   const currentActiveOrders = filteredOrders.filter(o => !['DELIVERED', 'CANCELLED', 'REJECTED'].includes(o.status)).length;
   const currentDeliveredOrders = filteredOrders.filter(o => o.status === 'DELIVERED').length;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todaysOrdersCount = filteredOrders.filter(o => new Date(o.createdAt) >= today).length || (selectedBranchId === 'all' ? (analytics.todaysOrders || filteredOrders.length) : filteredOrders.length);
-  
   const newOrdersCount = filteredOrders.filter(o => ['PLACED', 'PENDING'].includes(o.status)).length;
   const pickingCount = filteredOrders.filter(o => ['CONFIRMED', 'PICKING', 'ACCEPTED', 'PREPARING'].includes(o.status)).length;
   const packedCount = filteredOrders.filter(o => o.status === 'PACKED').length;
   const readyCount = filteredOrders.filter(o => ['READY_FOR_PICKUP', 'READY', 'ASSIGNED_TO_RIDER'].includes(o.status)).length;
   const completedCount = currentDeliveredOrders;
-  const outOfStockCount = filteredItems.filter(i => Number(i.stock) <= 0).length;
 
   // Compute Branch-wise Performance Data for all branches
   const branchBreakdownData = availableStores.map(st => {
     const storeOrders = orders.filter(
       o => o.storeId === st.id || o.shopkeeperId === st.id || (st.managerId && o.shopkeeperId === st.managerId)
     );
-    const storeTodaysOrders = storeOrders.filter(o => new Date(o.createdAt) >= today);
+    const storeTodaysOrders = storeOrders.filter(o => isDateToday(o.createdAt));
+    const storeTodaysRevenue = storeTodaysOrders.reduce((sum, o) => sum + (Number(o.grandTotal) || Number(o.totalAmount) || 0), 0);
     const storeRevenue = storeOrders.reduce((sum, o) => sum + (Number(o.grandTotal) || Number(o.totalAmount) || 0), 0);
     const storePending = storeOrders.filter(o => !['DELIVERED', 'CANCELLED', 'REJECTED'].includes(o.status)).length;
     const storeDelivered = storeOrders.filter(o => o.status === 'DELIVERED').length;
@@ -124,6 +138,7 @@ export default function DashboardOverview({
       managerPhone: storeManager?.phone || '+91 98989 12345',
       totalOrders: storeOrders.length,
       todaysOrders: storeTodaysOrders.length,
+      todaysRevenue: storeTodaysRevenue,
       revenue: storeRevenue,
       pendingOrders: storePending,
       deliveredOrders: storeDelivered,
@@ -137,24 +152,25 @@ export default function DashboardOverview({
   let kpis = [];
   if (selectedBranchId !== 'all' || isShopkeeper) {
     kpis = [
-      { title: "Today's Orders", value: todaysOrdersCount, icon: ShoppingBag, color: 'bg-blue-600 text-white', badgeColor: 'bg-blue-50 text-blue-700' },
-      { title: 'New Orders', value: newOrdersCount, icon: AlertTriangle, color: 'bg-yellow-500 text-white', badgeColor: 'bg-yellow-50 text-yellow-800' },
-      { title: 'Picking & Prep', value: pickingCount, icon: PackageCheck, color: 'bg-indigo-500 text-white', badgeColor: 'bg-indigo-50 text-indigo-700' },
-      { title: 'Packed / Ready', value: packedCount + readyCount, icon: Bike, color: 'bg-purple-500 text-white', badgeColor: 'bg-purple-50 text-purple-700' },
-      { title: 'Completed', value: completedCount, icon: CheckCircle, color: 'bg-green-600 text-white', badgeColor: 'bg-green-50 text-green-700' },
-      { title: 'Branch Low Stock', value: lowStockItems.length, icon: AlertTriangle, color: 'bg-red-500 text-white', badgeColor: 'bg-red-50 text-red-700' },
-      { title: 'Out of Stock', value: outOfStockCount, icon: XCircle, color: 'bg-red-700 text-white', badgeColor: 'bg-red-50 text-red-800' },
-      { title: "Branch Sales (₹)", value: `₹${currentSales.toLocaleString()}`, icon: IndianRupee, color: 'bg-emerald-600 text-white', badgeColor: 'bg-emerald-50 text-emerald-700' }
+      { title: "Today's Orders", value: todaysOrdersCount, change: todaysOrdersCount === 0 ? "No orders today" : `${todaysOrdersCount} today`, icon: ShoppingBag, color: 'bg-blue-600 text-white', badgeColor: 'bg-blue-50 text-blue-700' },
+      { title: "Today's Sales", value: `₹${todaysRevenue.toLocaleString()}`, change: "Today", icon: IndianRupee, color: 'bg-emerald-600 text-white', badgeColor: 'bg-emerald-50 text-emerald-700' },
+      { title: "Total Branch Orders", value: currentTotalOrders, change: "All-Time", icon: PackageCheck, color: 'bg-indigo-600 text-white', badgeColor: 'bg-indigo-50 text-indigo-700' },
+      { title: "Total Branch Sales", value: `₹${currentSales.toLocaleString()}`, change: "All-Time Lifetime", icon: TrendingUp, color: 'bg-green-600 text-white', badgeColor: 'bg-green-50 text-green-700' },
+      { title: 'New Orders', value: newOrdersCount, change: newOrdersCount > 0 ? "Needs Packing" : "Clear", icon: AlertTriangle, color: 'bg-yellow-500 text-white', badgeColor: 'bg-yellow-50 text-yellow-800' },
+      { title: 'In Fulfillment', value: pickingCount + packedCount + readyCount, change: "Active Pipeline", icon: Bike, color: 'bg-purple-500 text-white', badgeColor: 'bg-purple-50 text-purple-700' },
+      { title: 'Delivered', value: completedCount, change: "Completed", icon: CheckCircle, color: 'bg-teal-600 text-white', badgeColor: 'bg-teal-50 text-teal-700' },
+      { title: 'Low Stock Items', value: lowStockItems.length + outOfStockCount, change: outOfStockCount > 0 ? `${outOfStockCount} Out of Stock` : "Stock ≤ 10", icon: AlertTriangle, color: 'bg-red-500 text-white', badgeColor: 'bg-red-50 text-red-700' }
     ];
   } else {
     kpis = [
-      { title: "Orders Today (All)", value: todaysOrdersCount, icon: ShoppingBag, color: 'bg-blue-600 text-white', badgeColor: 'bg-blue-50 text-blue-700' },
-      { title: 'Pending Fulfillment', value: currentActiveOrders, icon: PackageCheck, color: 'bg-orange-500 text-white', badgeColor: 'bg-orange-50 text-orange-700' },
-      { title: 'Active Branches', value: availableStores.length, icon: Store, color: 'bg-purple-600 text-white', badgeColor: 'bg-purple-50 text-purple-700' },
-      { title: 'Active Riders', value: analytics.totalDeliveryPartners || users.filter(u => u.role === 'Delivery Partner').length || 5, icon: Bike, color: 'bg-pink-600 text-white', badgeColor: 'bg-pink-50 text-pink-700' },
-      { title: 'Low Stock Alerts', value: lowStockItems.length, icon: AlertTriangle, color: 'bg-yellow-500 text-white', badgeColor: 'bg-yellow-50 text-yellow-700' },
-      { title: 'Completed Orders', value: completedCount, icon: CheckCircle, color: 'bg-green-600 text-white', badgeColor: 'bg-green-50 text-green-700' },
-      { title: 'Total Network Sales', value: `₹${currentSales.toLocaleString()}`, icon: IndianRupee, color: 'bg-emerald-600 text-white', badgeColor: 'bg-emerald-50 text-emerald-700' }
+      { title: "Today's Orders (All)", value: todaysOrdersCount, change: todaysOrdersCount === 0 ? "No orders today" : `${todaysOrdersCount} today`, icon: ShoppingBag, color: 'bg-blue-600 text-white', badgeColor: 'bg-blue-50 text-blue-700' },
+      { title: "Today's Sales (All)", value: `₹${todaysRevenue.toLocaleString()}`, change: "Today", icon: IndianRupee, color: 'bg-emerald-600 text-white', badgeColor: 'bg-emerald-50 text-emerald-700' },
+      { title: "Total Network Orders", value: currentTotalOrders, change: "All-Time Total", icon: PackageCheck, color: 'bg-indigo-600 text-white', badgeColor: 'bg-indigo-50 text-indigo-700' },
+      { title: "Total Network Sales", value: `₹${currentSales.toLocaleString()}`, change: "All-Time Lifetime", icon: TrendingUp, color: 'bg-green-600 text-white', badgeColor: 'bg-green-50 text-green-700' },
+      { title: 'Pending Fulfillment', value: currentActiveOrders, change: "Active Pipeline", icon: AlertTriangle, color: 'bg-orange-500 text-white', badgeColor: 'bg-orange-50 text-orange-700' },
+      { title: 'Active Branches', value: availableStores.length, change: "Dark Stores", icon: Store, color: 'bg-purple-600 text-white', badgeColor: 'bg-purple-50 text-purple-700' },
+      { title: 'Active Riders', value: analytics.totalDeliveryPartners || users.filter(u => u.role === 'Delivery Partner').length || 1, change: "Delivery Fleet", icon: Bike, color: 'bg-pink-600 text-white', badgeColor: 'bg-pink-50 text-pink-700' },
+      { title: 'Low Stock Alerts', value: lowStockItems.length + outOfStockCount, change: "Network Restock", icon: AlertTriangle, color: 'bg-yellow-500 text-white', badgeColor: 'bg-yellow-50 text-yellow-700' }
     ];
   }
 
@@ -212,16 +228,17 @@ export default function DashboardOverview({
               <Building2 className="w-4 h-4" />
               <span>All Branches</span>
               <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-extrabold ${selectedBranchId === 'all' ? 'bg-gray-700 text-amber-300' : 'bg-gray-200 text-gray-700'}`}>
-                {availableStores.length}
+                {orders.length} total ({orders.filter(o => isDateToday(o.createdAt)).length} today)
               </span>
             </button>
 
             {/* Individual Branch Tabs */}
             {availableStores.map(store => {
               const isSelected = selectedBranchId === store.id;
-              const storeOrdersCount = orders.filter(
+              const storeOrders = orders.filter(
                 o => o.storeId === store.id || o.shopkeeperId === store.id || (store.managerId && o.shopkeeperId === store.managerId)
-              ).length;
+              );
+              const storeTodayCount = storeOrders.filter(o => isDateToday(o.createdAt)).length;
 
               return (
                 <button
@@ -236,7 +253,7 @@ export default function DashboardOverview({
                   <Store className="w-3.5 h-3.5" />
                   <span>{store.name}</span>
                   <span className={`px-1.5 py-0.5 rounded text-[10px] font-extrabold ${isSelected ? 'bg-amber-900/20 text-gray-950' : 'bg-gray-100 text-gray-600'}`}>
-                    {storeOrdersCount} orders
+                    {storeOrders.length} total ({storeTodayCount} today)
                   </span>
                 </button>
               );
@@ -377,24 +394,28 @@ export default function DashboardOverview({
                     {/* Key Branch Stats Grid */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 text-center">
                       <div className="bg-white p-2 rounded-xl border border-gray-100">
-                        <span className="text-[10px] font-bold text-gray-400 block uppercase">Revenue</span>
+                        <span className="text-[10px] font-bold text-gray-400 block uppercase">Total Sales</span>
                         <span className="text-sm font-black text-emerald-700">₹{branch.revenue.toLocaleString()}</span>
+                        <span className="text-[9px] text-gray-400 block">Today: ₹{branch.todaysRevenue.toLocaleString()}</span>
                       </div>
                       <div className="bg-white p-2 rounded-xl border border-gray-100">
-                        <span className="text-[10px] font-bold text-gray-400 block uppercase">Today / Total</span>
-                        <span className="text-sm font-black text-blue-700">{branch.todaysOrders} / {branch.totalOrders}</span>
+                        <span className="text-[10px] font-bold text-gray-400 block uppercase">Orders</span>
+                        <span className="text-sm font-black text-blue-700">{branch.totalOrders} total</span>
+                        <span className="text-[9px] text-blue-600 font-bold block">{branch.todaysOrders} today</span>
                       </div>
                       <div className="bg-white p-2 rounded-xl border border-gray-100">
                         <span className="text-[10px] font-bold text-gray-400 block uppercase">In-Pipeline</span>
                         <span className={`text-sm font-black ${branch.pendingOrders > 0 ? 'text-amber-600' : 'text-gray-700'}`}>
                           {branch.pendingOrders}
                         </span>
+                        <span className="text-[9px] text-gray-400 block">Active</span>
                       </div>
                       <div className="bg-white p-2 rounded-xl border border-gray-100">
                         <span className="text-[10px] font-bold text-gray-400 block uppercase">Low Stock</span>
                         <span className={`text-sm font-black ${branch.lowStockCount > 0 ? 'text-red-600' : 'text-gray-700'}`}>
                           {branch.lowStockCount}
                         </span>
+                        <span className="text-[9px] text-gray-400 block">Restock</span>
                       </div>
                     </div>
 

@@ -14,15 +14,25 @@ router.get('/', async (req, res) => {
   try {
     const targetStoreId = (req.query.storeId && req.query.storeId !== 'all') ? req.query.storeId : (req.query.shopkeeperId || null);
     if (isMongoConnected) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const now = new Date();
+      const isDateToday = (dVal) => {
+        if (!dVal) return false;
+        const d = new Date(dVal);
+        if (isNaN(d.getTime())) return false;
+        return (
+          d.getFullYear() === now.getFullYear() &&
+          d.getMonth() === now.getMonth() &&
+          d.getDate() === now.getDate()
+        );
+      };
 
       // Aggregations based on store context
       let orderQuery = targetStoreId ? { $or: [{ storeId: targetStoreId }, { shopkeeperId: targetStoreId }] } : {};
       const orders = await Order.find(orderQuery);
       
-      const todaysOrders = orders.filter(o => new Date(o.createdAt) >= today);
-      const todaysRevenue = todaysOrders.reduce((sum, o) => sum + (o.grandTotal || o.totalAmount || 0), 0);
+      const todaysOrders = orders.filter(o => isDateToday(o.createdAt));
+      const todaysRevenue = todaysOrders.reduce((sum, o) => sum + (Number(o.grandTotal) || Number(o.totalAmount) || 0), 0);
+      const totalLifetimeSales = orders.reduce((sum, o) => sum + (Number(o.grandTotal) || Number(o.totalAmount) || 0), 0);
       
       const pendingOrders = orders.filter(o => ['PLACED', 'PENDING', 'ACCEPTED', 'CONFIRMED', 'PICKING', 'PREPARING'].includes(o.status)).length;
       const cancelledOrders = orders.filter(o => o.status === 'CANCELLED').length;
@@ -57,8 +67,9 @@ router.get('/', async (req, res) => {
 
       const branchBreakdown = await Promise.all(stores.map(async (st) => {
         const storeOrders = allOrders.filter(o => o.storeId === st.id || o.shopkeeperId === st.id || o.shopkeeperId === st.managerId);
-        const storeTodaysOrders = storeOrders.filter(o => new Date(o.createdAt) >= today);
-        const storeRevenue = storeOrders.reduce((sum, o) => sum + (o.grandTotal || o.totalAmount || 0), 0);
+        const storeTodaysOrders = storeOrders.filter(o => isDateToday(o.createdAt));
+        const storeTodaysRevenue = storeTodaysOrders.reduce((sum, o) => sum + (Number(o.grandTotal) || Number(o.totalAmount) || 0), 0);
+        const storeRevenue = storeOrders.reduce((sum, o) => sum + (Number(o.grandTotal) || Number(o.totalAmount) || 0), 0);
         const storePending = storeOrders.filter(o => ['PLACED', 'PENDING', 'ACCEPTED', 'CONFIRMED', 'PICKING', 'PREPARING'].includes(o.status)).length;
         const storeDelivered = storeOrders.filter(o => o.status === 'DELIVERED').length;
         const storeLowStock = await StoreInventory.countDocuments({ storeId: st.id, stock: { $lte: 10 } });
@@ -76,6 +87,7 @@ router.get('/', async (req, res) => {
           managerEmail: manager?.email || '',
           totalOrders: storeOrders.length,
           todaysOrders: storeTodaysOrders.length,
+          todaysRevenue: storeTodaysRevenue,
           totalRevenue: storeRevenue,
           pendingOrders: storePending,
           deliveredOrders: storeDelivered,
@@ -95,8 +107,7 @@ router.get('/', async (req, res) => {
         cancelledOrders,
         activeDeliveries,
         lowStockCount,
-        // Legacy compat
-        totalSales: todaysRevenue,
+        totalSales: totalLifetimeSales,
         totalOrders: orders.length,
         activeOrders: pendingOrders,
         branchBreakdown
