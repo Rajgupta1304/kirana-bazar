@@ -15,7 +15,8 @@ import {
   Shield,
   Sparkles,
   X,
-  User
+  User,
+  DollarSign
 } from 'lucide-react';
 
 export default function AdminSidebar({
@@ -24,6 +25,7 @@ export default function AdminSidebar({
   onResetDb,
   analytics,
   orders = [],
+  priceRequests = [],
   currentUser,
   openAuthModal,
   onLogout,
@@ -45,6 +47,10 @@ export default function AdminSidebar({
 
   const activeOrdersCount = visibleOrders.filter(
     o => !['DELIVERED', 'CANCELLED', 'REJECTED'].includes(o.status)
+  ).length;
+
+  const pendingPriceRequestsCount = priceRequests.filter(
+    r => r.status === 'PENDING' && (isShopkeeper ? r.storeId === currentUser?.storeId : true)
   ).length;
 
   // Grouped Navigation Items
@@ -94,6 +100,14 @@ export default function AdminSidebar({
           label: 'Store Inventory',
           icon: Package,
           roles: ['Admin', 'Super Admin']
+        },
+        {
+          id: 'price-requests',
+          label: 'Price Requests',
+          icon: DollarSign,
+          badge: pendingPriceRequestsCount > 0 ? `${pendingPriceRequestsCount} Pending` : null,
+          badgeType: 'warning',
+          roles: ['Admin', 'Super Admin', 'Shopkeeper', 'Store Manager']
         }
       ]
     },

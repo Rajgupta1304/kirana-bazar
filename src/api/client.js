@@ -57,6 +57,15 @@ export const apiClient = {
     return await res.json();
   },
 
+  async updateProduct(id, productData) {
+    const res = await fetch(`${API_BASE_URL}/products/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(productData)
+    });
+    return await res.json();
+  },
+
   async deleteProduct(id) {
     const res = await fetch(`${API_BASE_URL}/products/${id}`, {
       method: 'DELETE',
@@ -280,5 +289,42 @@ export const apiClient = {
     } catch (e) {
       return null;
     }
+  },
+
+  async getPriceRequests(storeId = '', status = '') {
+    try {
+      let queryParams = [];
+      if (storeId && storeId !== 'all') queryParams.push(`storeId=${encodeURIComponent(storeId)}`);
+      if (status && status !== 'ALL') queryParams.push(`status=${encodeURIComponent(status)}`);
+      const qs = queryParams.length > 0 ? `?${queryParams.join('&')}` : '';
+      const res = await fetch(`${API_BASE_URL}/price-requests${qs}`, { headers: getHeaders() });
+      if (!res.ok) return [];
+      return await res.json();
+    } catch (e) {
+      console.warn('Failed to fetch price requests:', e);
+      return [];
+    }
+  },
+
+  async createPriceRequest(requestData) {
+    const res = await fetch(`${API_BASE_URL}/price-requests`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(requestData)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to submit price request');
+    return data;
+  },
+
+  async reviewPriceRequest(id, action, counterPrice = null, adminNote = '') {
+    const res = await fetch(`${API_BASE_URL}/price-requests/${id}/action`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify({ action, counterPrice, adminNote })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to review price request');
+    return data;
   }
 };

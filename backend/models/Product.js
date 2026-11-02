@@ -15,8 +15,12 @@ const productSchema = new mongoose.Schema({
   image: { type: String, required: true }, // Keep primary image for backwards compat
   description: { type: String, default: '' },
   barcode: { type: String, default: '' },
-  isActive: { type: Boolean, default: true }
-  // Removed price, mrp, stock, shopkeeperId, deliveryTime as they belong to StoreInventory now
+  isActive: { type: Boolean, default: true },
+  isAnimation: { type: Boolean, default: false }, // Flag for animation image (GIF/animated WebP)
+  visibleBranches: [{ type: String }], // Array of store IDs or ['all']
+  storeId: { type: String, default: null }, // Null for Global Master Catalog, or specific storeId for shopkeeper-scoped items
+  defaultPrice: { type: Number, default: 0 }, // Admin defined default price
+  mrp: { type: Number, default: 0 } // Admin defined MRP
 }, { timestamps: true });
 
 export default mongoose.models.Product || mongoose.model('Product', productSchema);

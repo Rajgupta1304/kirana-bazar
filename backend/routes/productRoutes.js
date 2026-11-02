@@ -146,14 +146,27 @@ router.get('/', async (req, res) => {
 
       if (targetStoreId) {
         const inventories = await StoreInventory.find({ storeId: targetStoreId, isAvailable: true });
-        const products = await Product.find().sort({ createdAt: -1 });
+        const allProducts = await Product.find().sort({ createdAt: -1 });
+
+        // Filter products visible to this store
+        const visibleProducts = allProducts.filter(prod => {
+          // If product was created specifically for a store, it must match targetStoreId
+          if (prod.storeId && prod.storeId !== targetStoreId) return false;
+
+          // Check visibleBranches
+          const branches = prod.visibleBranches || [];
+          if (branches.length === 0 || branches.includes('all') || branches.includes(targetStoreId)) {
+            return true;
+          }
+          return false;
+        });
 
         // Merge product data with store inventory data
-        const merged = products.map(prod => {
+        const merged = visibleProducts.map(prod => {
           const inv = inventories.find(i => i.productId === prod.id);
-          const price = inv ? (inv.price || inv.sellingPrice) : (prod.price || prod.mrp || 30);
+          const price = inv ? (inv.price || inv.sellingPrice) : (prod.defaultPrice || prod.price || prod.mrp || 30);
           const mrp = inv ? (inv.mrp || prod.mrp) : (prod.mrp || price);
-          const stock = inv ? inv.stock : (prod.stock !== undefined && prod.stock !== null ? prod.stock : 25);
+          const stock = inv ? inv.stock : (prod.stock !== undefined && prod.stock !== null ? prod.stock : 0);
           
           return {
             id: prod.id,
@@ -164,18 +177,19 @@ router.get('/', async (req, res) => {
             price,
             mrp,
             stock,
+            isAnimation: Boolean(prod.isAnimation),
+            visibleBranches: prod.visibleBranches || ['all'],
+            storeId: targetStoreId,
+            inStore: !!inv,
             rating: prod.rating || 4.8,
             deliveryTime: prod.deliveryTime || '8 mins',
             image: prod.image,
             description: prod.description || '',
-            storeId: targetStoreId,
-            inStore: true
+            defaultPrice: prod.defaultPrice || prod.price || price
           };
         });
 
-        if (merged.length > 0) {
-          return res.json(merged);
-        }
+        return res.json(merged);
       }
 
       // Return master catalog augmented with inventory pricing
@@ -190,14 +204,17 @@ router.get('/', async (req, res) => {
             .reduce((sum, i) => sum + (i.stock || 0), 0);
 
           const prodObj = prod.toObject ? prod.toObject() : prod;
-          const price = prodObj.price !== undefined && prodObj.price !== null ? prodObj.price : (inv ? (inv.price || inv.sellingPrice) : (prodObj.mrp || 30));
-          const stock = prodObj.stock !== undefined && prodObj.stock !== null ? prodObj.stock : (totalStock > 0 ? totalStock : 25);
+          const defaultPrice = prodObj.defaultPrice || prodObj.price || (inv ? (inv.price || inv.sellingPrice) : (prodObj.mrp || 30));
+          const mrp = prodObj.mrp || (inv ? inv.mrp : defaultPrice);
 
           return {
             ...prodObj,
-            price,
-            mrp: prodObj.mrp || (inv ? inv.mrp : price),
-            stock,
+            price: defaultPrice,
+            defaultPrice,
+            mrp,
+            stock: totalStock,
+            isAnimation: Boolean(prodObj.isAnimation),
+            visibleBranches: prodObj.visibleBranches || ['all'],
             inStore: true
           };
         });
@@ -213,13 +230,40 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/products
-// Master catalog creation
+// Master catalog creation or store-scoped product creation
 router.post('/', async (req, res) => {
   try {
-    const { name, categoryId, categoryName, unit, image, description } = req.body;
+    const {
+      name,
+      categoryId,
+      categoryName,
+      unit,
+      image,
+      description,
+      isAnimation,
+      visibleBranches,
+      defaultPrice,
+      price,
+      mrp,
+      storeId,
+      stock
+    } = req.body;
+
     if (!name) {
       return res.status(400).json({ error: 'Name is required.' });
     }
+
+    const assignedStoreId = storeId || null;
+    let assignedVisibleBranches = visibleBranches;
+    if (assignedStoreId) {
+      // If product is created for a specific branch, lock visibility to that branch
+      assignedVisibleBranches = [assignedStoreId];
+    } else if (!assignedVisibleBranches || assignedVisibleBranches.length === 0) {
+      assignedVisibleBranches = ['all'];
+    }
+
+    const priceVal = Number(defaultPrice || price || 0);
+    const mrpVal = Number(mrp || priceVal || 0);
 
     const newProd = {
       id: 'prod_' + Date.now(),
@@ -230,12 +274,79 @@ router.post('/', async (req, res) => {
       ratingAverage: 4.8,
       ratingCount: 0,
       image: image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80',
-      description: description || ''
+      description: description || '',
+      isAnimation: Boolean(isAnimation),
+      visibleBranches: assignedVisibleBranches,
+      storeId: assignedStoreId,
+      defaultPrice: priceVal,
+      price: priceVal,
+      mrp: mrpVal
     };
 
     if (isMongoConnected) {
       const created = await Product.create(newProd);
+
+      // If created with a storeId, automatically add to that branch's inventory
+      if (assignedStoreId) {
+        const stockVal = Number(stock || 0);
+        await StoreInventory.create({
+          id: 'inv_' + Date.now() + Math.floor(Math.random() * 1000),
+          storeId: assignedStoreId,
+          productId: created.id,
+          price: priceVal,
+          mrp: mrpVal,
+          stock: stockVal,
+          isAvailable: true
+        });
+      }
+
       return res.status(201).json(created);
+    }
+    return res.status(500).json({ error: 'MongoDB required' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/products/:id
+// Update product in master catalog
+router.put('/:id', async (req, res) => {
+  try {
+    const {
+      name,
+      categoryId,
+      categoryName,
+      unit,
+      image,
+      description,
+      isAnimation,
+      visibleBranches,
+      defaultPrice,
+      price,
+      mrp
+    } = req.body;
+
+    if (isMongoConnected) {
+      const updateData = {};
+      if (name !== undefined) updateData.name = name;
+      if (categoryId !== undefined) updateData.categoryId = categoryId;
+      if (categoryName !== undefined) updateData.categoryName = categoryName;
+      if (unit !== undefined) updateData.unit = unit;
+      if (image !== undefined) updateData.image = image;
+      if (description !== undefined) updateData.description = description;
+      if (isAnimation !== undefined) updateData.isAnimation = Boolean(isAnimation);
+      if (visibleBranches !== undefined) updateData.visibleBranches = visibleBranches;
+      if (defaultPrice !== undefined) updateData.defaultPrice = Number(defaultPrice);
+      if (price !== undefined) updateData.price = Number(price);
+      if (mrp !== undefined) updateData.mrp = Number(mrp);
+
+      const updated = await Product.findOneAndUpdate(
+        { id: req.params.id },
+        { $set: updateData },
+        { new: true }
+      );
+      if (!updated) return res.status(404).json({ error: 'Product not found' });
+      return res.json(updated);
     }
     return res.status(500).json({ error: 'MongoDB required' });
   } catch (err) {

@@ -16,6 +16,7 @@ import OrderFulfillment from './components/admin/OrderFulfillment';
 import DriverManagement from './components/admin/DriverManagement';
 import RiderDashboard from './components/rider/RiderDashboard';
 import UserManager from './components/admin/UserManager';
+import PriceRequestManager from './components/admin/PriceRequestManager';
 
 import { Smartphone, Monitor, ArrowRight } from 'lucide-react';
 
@@ -28,6 +29,7 @@ export default function App() {
   const [drivers, setDrivers] = useState([]);
   const [users, setUsers] = useState([]);
   const [stores, setStores] = useState([]);
+  const [priceRequests, setPriceRequests] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [analytics, setAnalytics] = useState({ totalSales: 0, totalOrders: 0, activeOrders: 0, lowStockCount: 0, totalUsers: 0 });
   const [apiConnected, setApiConnected] = useState(false);
@@ -43,17 +45,18 @@ export default function App() {
   // Load data from Express MongoDB REST API with fallback to local DB
   const loadData = async (user = currentUser) => {
     try {
-      const isShopkeeper = user?.role === 'Shopkeeper';
+      const isShopkeeper = user?.role === 'Shopkeeper' || user?.role === 'Store Manager';
       const storeId = isShopkeeper ? (user?.storeId || 'store_1') : ''; 
 
-      const [apiProds, apiCats, apiOrds, apiUsers, apiStats, apiDrivers, apiStores] = await Promise.all([
+      const [apiProds, apiCats, apiOrds, apiUsers, apiStats, apiDrivers, apiStores, apiPriceReqs] = await Promise.all([
         apiClient.getProducts(storeId),
         apiClient.getCategories(),
         apiClient.getOrders(storeId),
         apiClient.getUsers(),
         apiClient.getAnalytics(storeId),
         apiClient.getDrivers(storeId),
-        apiClient.getStores()
+        apiClient.getStores(),
+        apiClient.getPriceRequests(isShopkeeper ? storeId : '')
       ]);
 
       if (apiProds) {
@@ -86,6 +89,8 @@ export default function App() {
           { id: 'store_1791816482491', name: 'Verma Daily Mart', address: 'Booth 45, Market Complex', active: true }
         ]);
       }
+
+      if (apiPriceReqs) setPriceRequests(apiPriceReqs);
 
     } catch (e) {
       console.warn('API error, using local database:', e);
@@ -202,6 +207,19 @@ export default function App() {
     await apiClient.deleteProduct(id);
     db.deleteItem(id);
     loadData();
+  };
+
+  // Branch Price Request Handlers
+  const handleCreatePriceRequest = async (requestData) => {
+    const res = await apiClient.createPriceRequest(requestData);
+    loadData(currentUser);
+    return res;
+  };
+
+  const handleReviewPriceRequest = async (id, action, counterPrice, adminNote) => {
+    const res = await apiClient.reviewPriceRequest(id, action, counterPrice, adminNote);
+    loadData(currentUser);
+    return res;
   };
 
   // Category Handlers
@@ -348,6 +366,7 @@ export default function App() {
               onResetDb={() => db.resetToDefaults()}
               analytics={analytics}
               orders={orders}
+              priceRequests={priceRequests}
               currentUser={currentUser}
               openAuthModal={() => setIsAdminAuthOpen(true)}
               onLogout={handleLogout}
@@ -366,6 +385,7 @@ export default function App() {
                 currentUser={currentUser}
                 orders={orders}
                 items={items}
+                priceRequests={priceRequests}
                 analytics={analytics}
                 apiConnected={apiConnected}
                 isSidebarCollapsed={isSidebarCollapsed}
@@ -393,9 +413,9 @@ export default function App() {
                     onNavigate={(tab) => {
                       const role = currentUser.role;
                       if (role === 'Admin' || role === 'Super Admin') {
-                        if (['dashboard', 'customers', 'store-managers', 'stores', 'items', 'store-inventory', 'categories', 'drivers', 'orders'].includes(tab)) setAdminTab(tab);
+                        if (['dashboard', 'customers', 'store-managers', 'stores', 'items', 'store-inventory', 'categories', 'drivers', 'orders', 'price-requests'].includes(tab)) setAdminTab(tab);
                       } else if (role === 'Shopkeeper' || role === 'Store Manager') {
-                        if (['dashboard', 'items', 'categories', 'orders', 'drivers'].includes(tab)) setAdminTab(tab);
+                        if (['dashboard', 'items', 'categories', 'orders', 'drivers', 'price-requests'].includes(tab)) setAdminTab(tab);
                       }
                     }}
                   />
@@ -438,11 +458,25 @@ export default function App() {
                     viewType={adminTab}
                     items={items}
                     categories={categories}
+                    stores={stores}
+                    priceRequests={priceRequests}
                     onAddItem={handleAddItem}
                     onAddInventory={handleAddInventory}
                     onUpdateStock={handleUpdateStock}
                     onDeleteItem={handleDeleteItem}
+                    onCreatePriceRequest={handleCreatePriceRequest}
                     currentUser={currentUser}
+                  />
+                )}
+
+                {/* Price Requests Management: Admin Approvals & Shopkeeper Tracking */}
+                {adminTab === 'price-requests' && ['Shopkeeper', 'Store Manager', 'Admin', 'Super Admin'].includes(currentUser.role) && (
+                  <PriceRequestManager
+                    priceRequests={priceRequests}
+                    stores={stores}
+                    currentUser={currentUser}
+                    onReviewPriceRequest={handleReviewPriceRequest}
+                    onRefresh={() => loadData(currentUser)}
                   />
                 )}
 

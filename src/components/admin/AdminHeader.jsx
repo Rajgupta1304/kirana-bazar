@@ -27,6 +27,7 @@ const TAB_TITLES = {
   categories: { title: 'Categories & Brands', section: 'Catalog' },
   items: { title: 'Product Catalog', section: 'Catalog' },
   'store-inventory': { title: 'Store Inventory', section: 'Catalog' },
+  'price-requests': { title: 'Branch Price Requests', section: 'Catalog' },
   orders: { title: 'Orders & Fulfillment', section: 'Logistics' },
   drivers: { title: 'Delivery Fleet', section: 'Logistics' },
   customers: { title: 'Customer Directory', section: 'People & Access' }
@@ -38,6 +39,7 @@ export default function AdminHeader({
   currentUser,
   orders = [],
   items = [],
+  priceRequests = [],
   analytics = {},
   apiConnected = true,
   isSidebarCollapsed,
@@ -87,10 +89,11 @@ export default function AdminHeader({
   const isShopkeeper = currentUser?.role === 'Shopkeeper' || currentUser?.role === 'Store Manager';
   const isAdmin = currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin';
 
-  // Compute notifications from orders & items
+  // Compute notifications from orders, items, & price requests
   const pendingOrders = orders.filter(o => ['PLACED', 'PENDING', 'ACCEPTED'].includes(o.status));
   const lowStockItems = items.filter(i => (i.stock !== undefined ? i.stock <= 10 : false));
-  const totalAlerts = pendingOrders.length + (lowStockItems.length > 0 ? 1 : 0);
+  const pendingPriceReqs = priceRequests.filter(r => r.status === 'PENDING' && (isShopkeeper ? r.storeId === currentUser?.storeId : true));
+  const totalAlerts = pendingOrders.length + (lowStockItems.length > 0 ? 1 : 0) + pendingPriceReqs.length;
 
   const currentTabMeta = TAB_TITLES[activeTab] || { title: 'Operations', section: 'Admin' };
 
