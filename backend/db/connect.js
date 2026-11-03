@@ -239,6 +239,13 @@ export async function connectDB() {
   } catch (seedErr) {
     console.warn('⚠️ Seeding warning:', seedErr.message);
   }
+
+  // Auto-sync approved price requests into StoreInventory
+  try {
+    await syncApprovedPriceRequests();
+  } catch (syncErr) {
+    console.warn('⚠️ Price request sync warning:', syncErr.message);
+  }
 }
 
 async function seedInitialData() {
@@ -339,3 +346,64 @@ async function seedInitialData() {
     console.warn('Order seed warning:', e.message);
   }
 }
+
+export async function syncApprovedPriceRequests() {
+  if (!isMongoConnected) return;
+  try {
+    const PriceChangeRequest = (await import('../models/PriceChangeRequest.js')).default;
+    const StoreInventory = (await import('../models/StoreInventory.js')).default;
+    const Product = (await import('../models/Product.js')).default;
+
+    const approvedRequests = await PriceChangeRequest.find({ status: 'APPROVED' });
+    for (const pcr of approvedRequests) {
+      const priceToApply = Number(pcr.counterPrice || pcr.requestedPrice);
+      if (!priceToApply || isNaN(priceToApply)) continue;
+
+      let targetStoreId = pcr.storeId;
+      if (targetStoreId && (targetStoreId.startsWith('shop_') || targetStoreId.startsWith('usr_'))) {
+        const staff = await StoreStaff.findOne({ userId: targetStoreId, status: 'ACTIVE' });
+        if (staff && staff.storeId) targetStoreId = staff.storeId;
+      }
+      if (!targetStoreId) targetStoreId = 'store_1';
+
+      const storeFilter = [pcr.storeId, targetStoreId, pcr.shopkeeperId].filter(Boolean);
+      let inv = await StoreInventory.findOne({
+        productId: pcr.productId,
+        storeId: { $in: storeFilter }
+      });
+
+      if (inv) {
+        inv.price = priceToApply;
+        inv.sellingPrice = priceToApply;
+        inv.isAvailable = true;
+        await inv.save();
+      } else {
+        const product = await Product.findOne({ id: pcr.productId });
+        await StoreInventory.create({
+          id: 'inv_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+          storeId: targetStoreId,
+          productId: pcr.productId,
+          price: priceToApply,
+          sellingPrice: priceToApply,
+          mrp: product ? (product.mrp || product.defaultPrice || priceToApply) : priceToApply,
+          stock: product && product.stock !== undefined ? product.stock : 25,
+          isAvailable: true
+        });
+      }
+
+      await Product.updateMany(
+        {
+          id: pcr.productId,
+          storeId: { $in: storeFilter }
+        },
+        { $set: { defaultPrice: priceToApply, price: priceToApply } }
+      );
+    }
+    if (approvedRequests.length > 0) {
+      console.log(`✅ Synced ${approvedRequests.length} approved price requests with StoreInventory`);
+    }
+  } catch (err) {
+    console.warn('Sync approved price requests warning:', err.message);
+  }
+}
+

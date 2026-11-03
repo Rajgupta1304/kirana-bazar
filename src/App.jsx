@@ -113,6 +113,26 @@ export default function App() {
       setCurrentUser(user);
     }
     loadData(user);
+
+    // Auto-refresh when tab is focused
+    const handleWindowFocus = () => {
+      const activeUser = db.getCurrentUser();
+      loadData(activeUser);
+    };
+    window.addEventListener('focus', handleWindowFocus);
+
+    // Periodic background sync every 12 seconds
+    const syncInterval = setInterval(() => {
+      const activeUser = db.getCurrentUser();
+      if (activeUser) {
+        loadData(activeUser);
+      }
+    }, 12000);
+
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus);
+      clearInterval(syncInterval);
+    };
   }, []);
 
 

@@ -18,10 +18,12 @@ export const apiClient = {
     }
   },
 
-  async getProducts(shopkeeperId = '') {
+  async getProducts(storeId = '') {
     try {
-      const url = shopkeeperId ? `${API_BASE_URL}/products?shopkeeperId=${shopkeeperId}` : `${API_BASE_URL}/products`;
-      const res = await fetch(url);
+      const url = storeId 
+        ? `${API_BASE_URL}/products?storeId=${encodeURIComponent(storeId)}&shopkeeperId=${encodeURIComponent(storeId)}` 
+        : `${API_BASE_URL}/products`;
+      const res = await fetch(url, { headers: getHeaders() });
       if (!res.ok) throw new Error('API fetch failed');
       return await res.json();
     } catch (e) {

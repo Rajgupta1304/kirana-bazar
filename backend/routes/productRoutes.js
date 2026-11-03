@@ -2,6 +2,8 @@ import express from 'express';
 import Product from '../models/Product.js';
 import StoreInventory from '../models/StoreInventory.js';
 import StoreStaff from '../models/StoreStaff.js';
+import PriceChangeRequest from '../models/PriceChangeRequest.js';
+import Store from '../models/Store.js';
 import { isMongoConnected } from '../db/connect.js';
 import { authMiddleware, requireShopkeeper } from '../middleware/authMiddleware.js';
 
@@ -142,45 +144,103 @@ router.get('/', async (req, res) => {
     const { storeId, shopkeeperId } = req.query; // shopkeeperId legacy compat
 
     if (isMongoConnected) {
-      const targetStoreId = storeId || shopkeeperId; // legacy compat
+      let targetStoreId = storeId || shopkeeperId; // legacy compat
 
       if (targetStoreId) {
-        const inventories = await StoreInventory.find({ storeId: targetStoreId, isAvailable: true });
+        // Resolve targetStoreId if it is a shopkeeper user ID (e.g. shop_1 or usr_...)
+        let possibleStoreIds = [targetStoreId];
+        if (targetStoreId.startsWith('shop_') || targetStoreId.startsWith('usr_')) {
+          const staff = await StoreStaff.findOne({ userId: targetStoreId, status: 'ACTIVE' });
+          if (staff && staff.storeId) {
+            possibleStoreIds.push(staff.storeId);
+            targetStoreId = staff.storeId;
+          } else {
+            const store = await Store.findOne({ managerId: targetStoreId });
+            if (store && store.id) {
+              possibleStoreIds.push(store.id);
+              targetStoreId = store.id;
+            }
+          }
+        } else if (targetStoreId.startsWith('store_')) {
+          const staff = await StoreStaff.findOne({ storeId: targetStoreId, status: 'ACTIVE' });
+          if (staff && staff.userId) {
+            possibleStoreIds.push(staff.userId);
+          }
+        }
+
+        const inventories = await StoreInventory.find({
+          storeId: { $in: possibleStoreIds },
+          isAvailable: { $ne: false }
+        });
+
+        // Also fetch approved price requests for this store to guarantee immediate price reflection
+        const approvedPriceReqs = await PriceChangeRequest.find({
+          storeId: { $in: possibleStoreIds },
+          status: 'APPROVED'
+        });
+
         const allProducts = await Product.find().sort({ createdAt: -1 });
 
         // Filter products visible to this store
         const visibleProducts = allProducts.filter(prod => {
           // If product was created specifically for a store, it must match targetStoreId
-          if (prod.storeId && prod.storeId !== targetStoreId) return false;
+          if (prod.storeId && !possibleStoreIds.includes(prod.storeId)) return false;
 
           // Check visibleBranches
           const branches = prod.visibleBranches || [];
-          if (branches.length === 0 || branches.includes('all') || branches.includes(targetStoreId)) {
+          if (branches.length === 0 || branches.includes('all') || possibleStoreIds.some(s => branches.includes(s))) {
             return true;
           }
           return false;
         });
 
-        // Merge product data with store inventory data
+        // Merge product data with store inventory data & approved price requests
         const merged = visibleProducts.map(prod => {
           const inv = inventories.find(i => i.productId === prod.id);
-          const price = inv ? (inv.price || inv.sellingPrice) : (prod.defaultPrice || prod.price || prod.mrp || 30);
+
+          // Priority 1: Approved Price Change Request for this branch
+          const approvedReq = approvedPriceReqs.find(r => r.productId === prod.id);
+          const approvedPrice = approvedReq ? Number(approvedReq.counterPrice || approvedReq.requestedPrice) : null;
+
+          let price = prod.defaultPrice || prod.price || prod.mrp || 30;
+          if (approvedPrice !== null && !isNaN(approvedPrice) && approvedPrice > 0) {
+            price = approvedPrice;
+          } else if (inv && inv.price !== undefined && inv.price !== null) {
+            price = inv.price;
+          } else if (inv && inv.sellingPrice !== undefined && inv.sellingPrice !== null) {
+            price = inv.sellingPrice;
+          }
+
           const mrp = inv ? (inv.mrp || prod.mrp) : (prod.mrp || price);
           const stock = inv ? inv.stock : (prod.stock !== undefined && prod.stock !== null ? prod.stock : 0);
           
+          // Self-heal: If an approved price exists without a StoreInventory entry, create it in the background
+          if (approvedPrice !== null && !inv) {
+            StoreInventory.create({
+              id: 'inv_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+              storeId: targetStoreId,
+              productId: prod.id,
+              price: approvedPrice,
+              sellingPrice: approvedPrice,
+              mrp: mrp || approvedPrice,
+              stock: stock || 25,
+              isAvailable: true
+            }).catch(() => {});
+          }
+
           return {
             id: prod.id,
             name: prod.name,
             categoryId: prod.categoryId,
             categoryName: prod.categoryName,
             unit: prod.unit,
-            price,
-            mrp,
-            stock,
+            price: Number(price),
+            mrp: Number(mrp),
+            stock: Number(stock),
             isAnimation: Boolean(prod.isAnimation),
             visibleBranches: prod.visibleBranches || ['all'],
             storeId: targetStoreId,
-            inStore: !!inv,
+            inStore: !!inv || !!approvedReq,
             rating: prod.rating || 4.8,
             deliveryTime: prod.deliveryTime || '8 mins',
             image: prod.image,

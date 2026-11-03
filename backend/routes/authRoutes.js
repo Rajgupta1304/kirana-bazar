@@ -34,10 +34,8 @@ router.post('/login', async (req, res) => {
       return res.status(403).json({ error: 'Account suspended by Kirana Bazar administration.' });
     }
 
-    const token = generateToken(foundUser);
-    
     let userResponse = foundUser.toObject ? foundUser.toObject() : { ...foundUser };
-    if (userResponse.role === 'Shopkeeper' && isMongoConnected) {
+    if (['Shopkeeper', 'Store Manager'].includes(userResponse.role) && isMongoConnected) {
       const StoreStaff = (await import('../models/StoreStaff.js')).default;
       const staff = await StoreStaff.findOne({ userId: userResponse.id, status: 'ACTIVE' });
       if (staff) {
@@ -55,9 +53,13 @@ router.post('/login', async (req, res) => {
             storeId: store.id,
             role: 'STORE_MANAGER'
           });
+        } else {
+          userResponse.storeId = 'store_1';
         }
       }
     }
+
+    const token = generateToken(userResponse);
 
     res.json({ message: 'Login successful', user: userResponse, token });
   } catch (err) {

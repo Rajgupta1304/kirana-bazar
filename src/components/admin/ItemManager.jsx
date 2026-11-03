@@ -350,10 +350,16 @@ export default function ItemManager({
                 </tr>
               ) : (
                 filteredItems.map((item) => {
-                  // Check if there is a pending price change request for this item in this store
+                  // Check if there is a pending or approved price change request for this item in this store
                   const pendingReq = priceRequests.find(
-                    r => r.productId === item.id && r.status === 'PENDING' && (isShopkeeperRole ? r.storeId === currentStoreId : true)
+                    r => r.productId === item.id && r.status === 'PENDING' && (isShopkeeperRole ? (r.storeId === currentStoreId || !r.storeId || r.storeId === 'store_1') : true)
                   );
+                  const approvedReq = priceRequests.find(
+                    r => r.productId === item.id && r.status === 'APPROVED' && (isShopkeeperRole ? (r.storeId === currentStoreId || !r.storeId || r.storeId === 'store_1') : true)
+                  );
+                  const displayPrice = (approvedReq && (approvedReq.counterPrice || approvedReq.requestedPrice))
+                    ? (approvedReq.counterPrice || approvedReq.requestedPrice)
+                    : item.price;
 
                   return (
                     <tr key={item.id} className="hover:bg-gray-50/80 transition">
@@ -421,7 +427,7 @@ export default function ItemManager({
                           {/* Store Selling Price with Price Change Request Option */}
                           <td className="p-3.5">
                             <div className="flex flex-col items-start">
-                              <span className="font-extrabold text-gray-900 text-sm">₹{item.price}</span>
+                              <span className="font-extrabold text-gray-900 text-sm">₹{displayPrice}</span>
                               {isShopkeeperRole && (
                                 <>
                                   {pendingReq ? (
@@ -429,13 +435,20 @@ export default function ItemManager({
                                       Req: ₹{pendingReq.requestedPrice} (Pending)
                                     </span>
                                   ) : (
-                                    <button
-                                      onClick={() => handleOpenPriceRequest(item)}
-                                      className="mt-0.5 text-[10px] text-blue-600 hover:text-blue-800 font-bold inline-flex items-center gap-0.5 underline"
-                                      title="Submit price change request to Admin"
-                                    >
-                                      <TrendingUp className="w-2.5 h-2.5" /> Request Price Change
-                                    </button>
+                                    <div className="flex flex-col items-start gap-0.5 mt-0.5">
+                                      {approvedReq && (
+                                        <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                          <Check className="w-2.5 h-2.5 text-emerald-600" /> Approved: ₹{displayPrice}
+                                        </span>
+                                      )}
+                                      <button
+                                        onClick={() => handleOpenPriceRequest(item)}
+                                        className="text-[10px] text-blue-600 hover:text-blue-800 font-bold inline-flex items-center gap-0.5 underline"
+                                        title="Submit price change request to Admin"
+                                      >
+                                        <TrendingUp className="w-2.5 h-2.5" /> Request Price Change
+                                      </button>
+                                    </div>
                                   )}
                                 </>
                               )}

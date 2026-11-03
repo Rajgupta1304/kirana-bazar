@@ -169,16 +169,51 @@ router.patch('/:id/action', authMiddleware, async (req, res) => {
         pcr.reviewedAt = new Date();
         await pcr.save();
 
-        // Update StoreInventory strictly for this branch only!
-        await StoreInventory.findOneAndUpdate(
-          { storeId: pcr.storeId, productId: pcr.productId },
-          { $set: { price: pcr.requestedPrice, sellingPrice: pcr.requestedPrice } },
-          { upsert: false }
+        const approvedPrice = Number(pcr.requestedPrice);
+
+        // Resolve storeId in case a shopkeeper user ID was saved
+        let targetStoreId = pcr.storeId;
+        if (targetStoreId && (targetStoreId.startsWith('shop_') || targetStoreId.startsWith('usr_'))) {
+          const staff = await StoreStaff.findOne({ userId: targetStoreId, status: 'ACTIVE' });
+          if (staff && staff.storeId) targetStoreId = staff.storeId;
+        }
+        if (!targetStoreId) targetStoreId = 'store_1';
+
+        // 1. Update existing StoreInventory or create a new branch inventory record
+        const storeFilter = [pcr.storeId, targetStoreId, pcr.shopkeeperId].filter(Boolean);
+        let inv = await StoreInventory.findOne({
+          productId: pcr.productId,
+          storeId: { $in: storeFilter }
+        });
+
+        if (inv) {
+          inv.price = approvedPrice;
+          inv.sellingPrice = approvedPrice;
+          inv.isAvailable = true;
+          await inv.save();
+        } else {
+          const product = await Product.findOne({ id: pcr.productId });
+          inv = await StoreInventory.create({
+            id: 'inv_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+            storeId: targetStoreId,
+            productId: pcr.productId,
+            price: approvedPrice,
+            sellingPrice: approvedPrice,
+            mrp: product ? (product.mrp || product.defaultPrice || approvedPrice) : approvedPrice,
+            stock: product && product.stock !== undefined ? product.stock : 25,
+            isAvailable: true
+          });
+        }
+
+        // 2. Also update Product defaultPrice and price if the item was created for this store
+        await Product.updateMany(
+          { id: pcr.productId, storeId: { $in: storeFilter } },
+          { $set: { defaultPrice: approvedPrice, price: approvedPrice } }
         );
 
         createNotification({
           title: 'Price Request Approved! ✅',
-          message: `Your price request for ${pcr.productName} has been approved at ₹${pcr.requestedPrice}.`,
+          message: `Your price request for ${pcr.productName} has been approved at ₹${approvedPrice}.`,
           type: 'PRICE_APPROVED',
           recipientId: pcr.shopkeeperId
         });
@@ -216,11 +251,41 @@ router.patch('/:id/action', authMiddleware, async (req, res) => {
         pcr.reviewedAt = new Date();
         await pcr.save();
 
-        // Update StoreInventory to counter price for this branch only!
-        await StoreInventory.findOneAndUpdate(
-          { storeId: pcr.storeId, productId: pcr.productId },
-          { $set: { price: approvedPrice, sellingPrice: approvedPrice } },
-          { upsert: false }
+        let targetStoreId = pcr.storeId;
+        if (targetStoreId && (targetStoreId.startsWith('shop_') || targetStoreId.startsWith('usr_'))) {
+          const staff = await StoreStaff.findOne({ userId: targetStoreId, status: 'ACTIVE' });
+          if (staff && staff.storeId) targetStoreId = staff.storeId;
+        }
+        if (!targetStoreId) targetStoreId = 'store_1';
+
+        const storeFilter = [pcr.storeId, targetStoreId, pcr.shopkeeperId].filter(Boolean);
+        let inv = await StoreInventory.findOne({
+          productId: pcr.productId,
+          storeId: { $in: storeFilter }
+        });
+
+        if (inv) {
+          inv.price = approvedPrice;
+          inv.sellingPrice = approvedPrice;
+          inv.isAvailable = true;
+          await inv.save();
+        } else {
+          const product = await Product.findOne({ id: pcr.productId });
+          inv = await StoreInventory.create({
+            id: 'inv_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+            storeId: targetStoreId,
+            productId: pcr.productId,
+            price: approvedPrice,
+            sellingPrice: approvedPrice,
+            mrp: product ? (product.mrp || product.defaultPrice || approvedPrice) : approvedPrice,
+            stock: product && product.stock !== undefined ? product.stock : 25,
+            isAvailable: true
+          });
+        }
+
+        await Product.updateMany(
+          { id: pcr.productId, storeId: { $in: storeFilter } },
+          { $set: { defaultPrice: approvedPrice, price: approvedPrice } }
         );
 
         createNotification({
@@ -232,6 +297,17 @@ router.patch('/:id/action', authMiddleware, async (req, res) => {
 
         return res.json({ message: `Price request approved at counter price ₹${approvedPrice}.`, request: pcr });
       }
+    }
+
+    // In-memory fallback
+    const pcr = memoryRequests.find(r => r.id === req.params.id);
+    if (pcr) {
+      const approvedPrice = action === 'COUNTER' ? Number(counterPrice) : Number(pcr.requestedPrice);
+      pcr.status = action === 'REJECT' ? 'REJECTED' : 'APPROVED';
+      pcr.adminNote = adminNote || (action === 'REJECT' ? 'Rejected by Admin' : 'Approved by Admin');
+      if (action === 'COUNTER') pcr.counterPrice = approvedPrice;
+      pcr.reviewedAt = new Date().toISOString();
+      return res.json({ message: `Price request ${action.toLowerCase()}ed.`, request: pcr });
     }
 
     return res.status(500).json({ error: 'MongoDB required for price management' });
