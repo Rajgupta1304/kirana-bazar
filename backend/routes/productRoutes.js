@@ -5,7 +5,7 @@ import StoreStaff from '../models/StoreStaff.js';
 import PriceChangeRequest from '../models/PriceChangeRequest.js';
 import Store from '../models/Store.js';
 import { isMongoConnected } from '../db/connect.js';
-import { authMiddleware, requireShopkeeper } from '../middleware/authMiddleware.js';
+import { authMiddleware, requireShopkeeper, requireAdmin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
@@ -290,8 +290,8 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/products
-// Master catalog creation or store-scoped product creation
-router.post('/', async (req, res) => {
+// Master catalog creation (Admin Only)
+router.post('/', authMiddleware, requireAdmin, async (req, res) => {
   try {
     const {
       name,
@@ -304,21 +304,15 @@ router.post('/', async (req, res) => {
       visibleBranches,
       defaultPrice,
       price,
-      mrp,
-      storeId,
-      stock
+      mrp
     } = req.body;
 
     if (!name) {
-      return res.status(400).json({ error: 'Name is required.' });
+      return res.status(400).json({ error: 'Product name is required.' });
     }
 
-    const assignedStoreId = storeId || null;
     let assignedVisibleBranches = visibleBranches;
-    if (assignedStoreId) {
-      // If product is created for a specific branch, lock visibility to that branch
-      assignedVisibleBranches = [assignedStoreId];
-    } else if (!assignedVisibleBranches || assignedVisibleBranches.length === 0) {
+    if (!assignedVisibleBranches || assignedVisibleBranches.length === 0) {
       assignedVisibleBranches = ['all'];
     }
 
@@ -337,7 +331,7 @@ router.post('/', async (req, res) => {
       description: description || '',
       isAnimation: Boolean(isAnimation),
       visibleBranches: assignedVisibleBranches,
-      storeId: assignedStoreId,
+      storeId: null, // Master catalog product
       defaultPrice: priceVal,
       price: priceVal,
       mrp: mrpVal
@@ -345,21 +339,6 @@ router.post('/', async (req, res) => {
 
     if (isMongoConnected) {
       const created = await Product.create(newProd);
-
-      // If created with a storeId, automatically add to that branch's inventory
-      if (assignedStoreId) {
-        const stockVal = Number(stock || 0);
-        await StoreInventory.create({
-          id: 'inv_' + Date.now() + Math.floor(Math.random() * 1000),
-          storeId: assignedStoreId,
-          productId: created.id,
-          price: priceVal,
-          mrp: mrpVal,
-          stock: stockVal,
-          isAvailable: true
-        });
-      }
-
       return res.status(201).json(created);
     }
     return res.status(500).json({ error: 'MongoDB required' });
@@ -369,8 +348,8 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/products/:id
-// Update product in master catalog
-router.put('/:id', async (req, res) => {
+// Update product in master catalog (Admin Only)
+router.put('/:id', authMiddleware, requireAdmin, async (req, res) => {
   try {
     const {
       name,
@@ -415,7 +394,8 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE /api/products/:id
-router.delete('/:id', async (req, res) => {
+// Delete product from master catalog (Admin Only)
+router.delete('/:id', authMiddleware, requireAdmin, async (req, res) => {
   try {
     if (isMongoConnected) {
       await Product.deleteOne({ id: req.params.id });
@@ -428,54 +408,102 @@ router.delete('/:id', async (req, res) => {
 });
 
 // POST /api/products/inventory
-// Add a master product to a specific store's inventory
+// Add a master product to a specific store's branch inventory (Shopkeeper)
 router.post('/inventory', authMiddleware, requireShopkeeper, async (req, res) => {
   try {
     const { storeId, productId, price, mrp, stock } = req.body;
-    let targetStoreId = storeId;
+    let targetStoreId = req.user.storeId || storeId;
 
     if (isMongoConnected) {
-      if (req.user.role === 'Shopkeeper') {
+      if (req.user.role === 'Shopkeeper' || req.user.role === 'Store Manager') {
         const staff = await StoreStaff.findOne({ userId: req.user.id, status: 'ACTIVE' });
-        if (!staff) return res.status(403).json({ error: 'Store not assigned' });
-        targetStoreId = staff.storeId;
+        if (staff && staff.storeId) {
+          targetStoreId = staff.storeId;
+        }
       }
 
-      if (!targetStoreId || !productId || !price) {
-        return res.status(400).json({ error: 'Store ID, Product ID, and Price are required.' });
+      if (!targetStoreId || !productId) {
+        return res.status(400).json({ error: 'Store ID and Product ID are required.' });
       }
 
-      // Check if already in inventory
-      let inv = await StoreInventory.findOne({ storeId, productId });
+      const product = await Product.findOne({ id: productId });
+      if (!product) {
+        return res.status(404).json({ error: 'Master product not found' });
+      }
+
+      const initialStock = Number(stock !== undefined && stock !== null ? stock : 20);
+      const sellingPrice = Number(price !== undefined && price !== null ? price : (product.defaultPrice || product.price || 0));
+      const mrpVal = Number(mrp !== undefined && mrp !== null ? mrp : (product.mrp || sellingPrice));
+
+      let inv = await StoreInventory.findOne({ storeId: targetStoreId, productId });
       if (inv) {
-        return res.status(400).json({ error: 'Product is already in your store inventory. Please update the stock instead.' });
+        inv.isAvailable = true;
+        inv.stock = initialStock;
+        if (price) inv.price = sellingPrice;
+        if (mrpVal) inv.mrp = mrpVal;
+        await inv.save();
+      } else {
+        inv = await StoreInventory.create({
+          id: 'inv_' + Date.now() + Math.floor(Math.random() * 1000),
+          storeId: targetStoreId,
+          productId,
+          price: sellingPrice,
+          sellingPrice: sellingPrice,
+          mrp: mrpVal,
+          stock: initialStock,
+          isAvailable: true
+        });
       }
 
-      const initialStock = stock || 0;
-      inv = await StoreInventory.create({
-        id: 'inv_' + Date.now() + Math.floor(Math.random() * 1000),
-        storeId: targetStoreId,
-        productId,
-        price,
-        mrp: mrp || price,
-        stock: initialStock,
-        isAvailable: true
-      });
-
-      // Import dynamically or ensure InventoryTransaction is available
-      const InventoryTransaction = (await import('../models/InventoryTransaction.js')).default;
-      await InventoryTransaction.create({
-        storeId: targetStoreId,
-        productId,
-        type: 'STOCK_IN',
-        quantity: initialStock,
-        previousStock: 0,
-        newStock: initialStock,
-        reason: 'Added to Store Catalog',
-        createdBy: targetStoreId // representing the shopkeeper
-      });
+      // Record transaction
+      try {
+        const InventoryTransaction = (await import('../models/InventoryTransaction.js')).default;
+        await InventoryTransaction.create({
+          storeId: targetStoreId,
+          productId,
+          type: 'STOCK_IN',
+          quantity: initialStock,
+          previousStock: 0,
+          newStock: initialStock,
+          reason: 'Added from Master Catalog',
+          createdBy: targetStoreId
+        });
+      } catch (_) {}
 
       return res.status(201).json(inv);
+    }
+    return res.status(500).json({ error: 'MongoDB required' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/products/inventory/:productId
+// Remove a product from a specific store's inventory (Shopkeeper)
+router.delete('/inventory/:productId', authMiddleware, requireShopkeeper, async (req, res) => {
+  try {
+    const { productId } = req.params;
+    let targetStoreId = req.user.storeId || req.query.storeId;
+
+    if (isMongoConnected) {
+      if (req.user.role === 'Shopkeeper' || req.user.role === 'Store Manager') {
+        const staff = await StoreStaff.findOne({ userId: req.user.id, status: 'ACTIVE' });
+        if (staff && staff.storeId) {
+          targetStoreId = staff.storeId;
+        }
+      }
+
+      if (!targetStoreId) {
+        return res.status(400).json({ error: 'Store ID required' });
+      }
+
+      // Mark inventory unavailable for this store
+      await StoreInventory.findOneAndUpdate(
+        { storeId: targetStoreId, productId },
+        { $set: { isAvailable: false, stock: 0 } }
+      );
+
+      return res.json({ message: 'Product removed from store inventory' });
     }
     return res.status(500).json({ error: 'MongoDB required' });
   } catch (err) {

@@ -43,9 +43,18 @@ export const authMiddleware = async (req, res, next) => {
 };
 
 export const requireShopkeeper = (req, res, next) => {
-  if (req.user && (req.user.role === 'Shopkeeper' || req.user.role === 'Admin')) {
+  if (req.user && ['Shopkeeper', 'Store Manager', 'Admin', 'Super Admin'].includes(req.user.role)) {
     next();
   } else {
     res.status(403).json({ error: 'Forbidden. Shopkeeper access required.' });
   }
 };
+
+export const requireAdmin = (req, res, next) => {
+  if (req.user && ['Admin', 'Super Admin'].includes(req.user.role)) {
+    next();
+  } else {
+    res.status(403).json({ error: 'Forbidden. Admin access required.' });
+  }
+};
+

@@ -13,8 +13,8 @@ import {
   TrendingUp,
   DollarSign,
   Layers,
-  Eye,
-  Check
+  Check,
+  Package
 } from 'lucide-react';
 
 export default function ItemManager({
@@ -24,7 +24,9 @@ export default function ItemManager({
   stores = [],
   priceRequests = [],
   onAddItem,
+  onUpdateItem,
   onAddInventory,
+  onRemoveInventory,
   onUpdateStock,
   onDeleteItem,
   onCreatePriceRequest,
@@ -33,47 +35,54 @@ export default function ItemManager({
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [stockFilter, setStockFilter] = useState('ALL');
-  const [showAddModal, setShowAddModal] = useState(false);
 
-  // Price Change Request Modal State for Shopkeeper
+  // Admin Master Add/Edit Modal State
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editingItem, setEditingItem] = useState(null); // null = add, object = edit
+  const [imageUploadType, setImageUploadType] = useState('file');
+
+  // Shopkeeper Quick-Add from Dropdown State
+  const [selectedMasterProductId, setSelectedMasterProductId] = useState('');
+  const [initialStockInput, setInitialStockInput] = useState(25);
+  const [isAddingToStore, setIsAddingToStore] = useState(false);
+  const [quickAddSuccess, setQuickAddSuccess] = useState('');
+
+  // Shopkeeper Price Change Request Modal State
   const [priceRequestItem, setPriceRequestItem] = useState(null);
   const [requestedPriceInput, setRequestedPriceInput] = useState('');
   const [priceRequestReason, setPriceRequestReason] = useState('');
   const [isSubmittingPriceRequest, setIsSubmittingPriceRequest] = useState(false);
 
-  // Image Upload Type: 'file' | 'url'
-  const [imageUploadType, setImageUploadType] = useState('file');
-
+  // Form State for Admin Master Product
   const [newItem, setNewItem] = useState({
     name: '',
-    productId: '', // For Shopkeeper adding from Master
     categoryId: categories[0]?.id || '',
     categoryName: categories[0]?.name || '',
     unit: '500 g',
     defaultPrice: '',
     price: '',
     mrp: '',
-    stock: 25,
     deliveryTime: '8-10 MINS',
     image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80',
     description: '',
     isAnimation: false,
-    visibilityMode: 'ALL', // 'ALL' or 'SPECIFIC'
+    visibilityMode: 'ALL',
     visibleBranches: ['all']
   });
 
+  const isAdmin = currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin';
   const isShopkeeperRole = currentUser?.role === 'Shopkeeper' || currentUser?.role === 'Store Manager';
-  const isStoreInventoryView = viewType === 'store-inventory' || isShopkeeperRole;
   const currentStoreId = currentUser?.storeId || 'store_1';
 
-  // Items not yet in this store's inventory
+  // Items created by Admin not yet in this store's inventory
   const notInStoreItems = items.filter(i => !i.inStore);
 
+  // Filtered items for display
   const filteredItems = items.filter((item) => {
-    // Only show in-store items if we are in Store Inventory view
-    const matchesShopkeeper = isShopkeeperRole 
-      ? (item.shopkeeperId === currentUser?.id || item.inStore || item.storeId === currentStoreId)
-      : (!isStoreInventoryView || item.price !== undefined || item.stock !== undefined || item.inStore);
+    // Shopkeepers only see items currently in their branch inventory
+    if (isShopkeeperRole && !item.inStore) {
+      return false;
+    }
     const matchesSearch = (item.name || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = categoryFilter === 'ALL' || item.categoryId === categoryFilter;
     const matchesStock = stockFilter === 'ALL' ||
@@ -81,8 +90,53 @@ export default function ItemManager({
       (stockFilter === 'OUT' && item.stock <= 0) ||
       (stockFilter === 'IN' && item.stock > 10);
     
-    return matchesShopkeeper && matchesSearch && matchesCategory && matchesStock;
+    return matchesSearch && matchesCategory && matchesStock;
   });
+
+  // Open Admin Add Master Product Modal
+  const handleOpenAddModal = () => {
+    setEditingItem(null);
+    setNewItem({
+      name: '',
+      categoryId: categories[0]?.id || '',
+      categoryName: categories[0]?.name || '',
+      unit: '500 g',
+      defaultPrice: '',
+      price: '',
+      mrp: '',
+      deliveryTime: '8-10 MINS',
+      image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80',
+      description: '',
+      isAnimation: false,
+      visibilityMode: 'ALL',
+      visibleBranches: ['all']
+    });
+    setImageUploadType('file');
+    setShowAddModal(true);
+  };
+
+  // Open Admin Edit Master Product Modal
+  const handleOpenEditModal = (item) => {
+    setEditingItem(item);
+    const isSpecific = item.visibleBranches && !item.visibleBranches.includes('all') && item.visibleBranches.length > 0;
+    setNewItem({
+      name: item.name || '',
+      categoryId: item.categoryId || categories[0]?.id || '',
+      categoryName: item.categoryName || categories[0]?.name || '',
+      unit: item.unit || '500 g',
+      defaultPrice: item.defaultPrice ?? item.price ?? '',
+      price: item.defaultPrice ?? item.price ?? '',
+      mrp: item.mrp ?? '',
+      deliveryTime: item.deliveryTime || '8-10 MINS',
+      image: item.image || '',
+      description: item.description || '',
+      isAnimation: Boolean(item.isAnimation),
+      visibilityMode: isSpecific ? 'SPECIFIC' : 'ALL',
+      visibleBranches: item.visibleBranches || ['all']
+    });
+    setImageUploadType(item.image?.startsWith('data:') ? 'file' : 'url');
+    setShowAddModal(true);
+  };
 
   // Handle local image file upload (FileReader into Base64 data URL)
   const handleImageFileUpload = (e) => {
@@ -100,7 +154,6 @@ export default function ItemManager({
       setNewItem(prev => ({
         ...prev,
         image: base64Url,
-        // Auto-detect GIF extension or animated mime
         isAnimation: file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif') ? true : prev.isAnimation
       }));
     };
@@ -122,101 +175,82 @@ export default function ItemManager({
     });
   };
 
-  const handleAddSubmit = async (e) => {
+  // Submit Admin Add / Edit Master Product
+  const handleAdminFormSubmit = async (e) => {
     e.preventDefault();
+    if (!newItem.name) {
+      alert('Please fill out the product name.');
+      return;
+    }
 
-    if (isStoreInventoryView) {
-      if (newItem.productId === 'CREATE_NEW') {
-        if (!newItem.name || !newItem.price) {
-          alert('Please fill out product name and selling price.');
-          return;
-        }
-        const selectedCat = categories.find(c => c.id === newItem.categoryId);
-        const created = await onAddItem({
-          ...newItem,
-          categoryName: selectedCat ? selectedCat.name : 'General',
-          storeId: currentStoreId,
-          visibleBranches: [currentStoreId],
-          defaultPrice: parseFloat(newItem.price),
-          price: parseFloat(newItem.price),
-          mrp: parseFloat(newItem.mrp || newItem.price),
-          stock: parseInt(newItem.stock || 0, 10)
-        });
-        
-        if (created && created.id && onAddInventory) {
-          onAddInventory({
-            storeId: currentStoreId,
-            productId: created.id,
-            price: parseFloat(newItem.price),
-            mrp: parseFloat(newItem.mrp || newItem.price),
-            stock: parseInt(newItem.stock || 0, 10)
-          });
-        }
-      } else {
-        if (!newItem.productId || !newItem.price) {
-          alert('Please select a product and fill out the selling price.');
-          return;
-        }
-        
-        const existing = items.find(i => i.id === newItem.productId && i.inStore);
-        if (existing) {
-          alert('This product is already in your store inventory! Please adjust its stock from the table instead.');
-          return;
-        }
+    const selectedCat = categories.find(c => c.id === newItem.categoryId);
+    const branches = newItem.visibilityMode === 'ALL'
+      ? ['all']
+      : (newItem.visibleBranches.length > 0 ? newItem.visibleBranches : ['all']);
 
-        if (onAddInventory) {
-          onAddInventory({
-            storeId: currentStoreId,
-            productId: newItem.productId,
-            price: parseFloat(newItem.price),
-            mrp: parseFloat(newItem.mrp || newItem.price),
-            stock: parseInt(newItem.stock || 0, 10)
-          });
-        }
+    const payload = {
+      name: newItem.name,
+      categoryId: newItem.categoryId,
+      categoryName: selectedCat ? selectedCat.name : (newItem.categoryName || 'General'),
+      unit: newItem.unit,
+      defaultPrice: parseFloat(newItem.defaultPrice || newItem.price || 0),
+      price: parseFloat(newItem.defaultPrice || newItem.price || 0),
+      mrp: parseFloat(newItem.mrp || newItem.defaultPrice || newItem.price || 0),
+      deliveryTime: newItem.deliveryTime,
+      image: newItem.image,
+      description: newItem.description,
+      isAnimation: Boolean(newItem.isAnimation),
+      visibleBranches: branches
+    };
+
+    if (editingItem) {
+      if (onUpdateItem) {
+        await onUpdateItem(editingItem.id, payload);
       }
     } else {
-      // Admin Master Catalog creation
-      if (!newItem.name) {
-        alert('Please fill out product name.');
-        return;
+      if (onAddItem) {
+        await onAddItem(payload);
       }
-      const selectedCat = categories.find(c => c.id === newItem.categoryId);
-      const branches = newItem.visibilityMode === 'ALL'
-        ? ['all']
-        : (newItem.visibleBranches.length > 0 ? newItem.visibleBranches : ['all']);
-
-      await onAddItem({
-        ...newItem,
-        categoryName: selectedCat ? selectedCat.name : 'General',
-        visibleBranches: branches,
-        defaultPrice: parseFloat(newItem.defaultPrice || newItem.price || 0),
-        price: parseFloat(newItem.defaultPrice || newItem.price || 0),
-        mrp: parseFloat(newItem.mrp || newItem.defaultPrice || newItem.price || 0),
-        storeId: null
-      });
     }
 
     setShowAddModal(false);
-    setNewItem({
-      name: '',
-      productId: '',
-      categoryId: categories[0]?.id || '',
-      categoryName: categories[0]?.name || '',
-      unit: '500 g',
-      defaultPrice: '',
-      price: '',
-      mrp: '',
-      stock: 25,
-      deliveryTime: '8-10 MINS',
-      image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80',
-      description: '',
-      isAnimation: false,
-      visibilityMode: 'ALL',
-      visibleBranches: ['all']
-    });
+    setEditingItem(null);
   };
 
-  // Open Price Request Modal for a product
+  // Shopkeeper adds an Admin Master Product to their branch from dropdown
+  const handleQuickAddFromMaster = async () => {
+    if (!selectedMasterProductId) return;
+    const prod = items.find(i => i.id === selectedMasterProductId);
+    if (!prod) return;
+
+    const initialStock = parseInt(initialStockInput || 20, 10);
+    if (isNaN(initialStock) || initialStock < 0) {
+      alert('Please enter a valid stock quantity.');
+      return;
+    }
+
+    setIsAddingToStore(true);
+    try {
+      if (onAddInventory) {
+        await onAddInventory({
+          storeId: currentStoreId,
+          productId: prod.id,
+          stock: initialStock,
+          price: prod.defaultPrice || prod.price || 0,
+          mrp: prod.mrp || prod.defaultPrice || prod.price || 0
+        });
+      }
+      setQuickAddSuccess(`"${prod.name}" successfully added to your branch inventory!`);
+      setSelectedMasterProductId('');
+      setTimeout(() => setQuickAddSuccess(''), 4500);
+    } catch (err) {
+      alert(err.message || 'Failed to add item to branch inventory');
+    } finally {
+      setIsAddingToStore(false);
+    }
+  };
+
+  // Shopkeeper opens Price Request Modal
   const handleOpenPriceRequest = (item) => {
     setPriceRequestItem(item);
     setRequestedPriceInput(item.price || item.defaultPrice || '');
@@ -255,26 +289,104 @@ export default function ItemManager({
   return (
     <div className="space-y-6">
       
-      {/* Header & Add Button */}
+      {/* Header & Role Action Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-gray-900 tracking-tight">
-            {isStoreInventoryView ? 'Store Inventory' : 'Master Catalog'}
+            {isAdmin ? 'Master Catalog' : 'Store Inventory'}
           </h1>
           <p className="text-xs text-gray-500">
-            {isStoreInventoryView 
-              ? 'Manage your store items, update stock levels, and request branch selling prices'
-              : 'Manage global product definitions, image uploads, animations, and branch visibility'}
+            {isAdmin
+              ? 'Add, edit, and manage global product catalog, default prices, images, animations, and branch availability'
+              : `Manage ${currentUser?.shopName || 'your branch'} stock levels, adjust quantities, and request branch selling prices`}
           </p>
         </div>
 
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="px-4 py-2.5 bg-green-700 hover:bg-green-800 text-white font-extrabold text-xs rounded-xl shadow-md shadow-green-700/20 flex items-center justify-center gap-2 transition"
-        >
-          <Plus className="w-4 h-4" /> Add New Item
-        </button>
+        {/* Only Admin has "+ Add Master Product" button; Shopkeepers select from dropdown below */}
+        {isAdmin && (
+          <button
+            onClick={handleOpenAddModal}
+            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition"
+          >
+            <Plus className="w-4 h-4" /> Add Master Product
+          </button>
+        )}
       </div>
+
+      {/* Shopkeeper Dropdown Quick-Add Bar (Only visible to Shopkeepers) */}
+      {isShopkeeperRole && (
+        <div className="bg-gradient-to-r from-emerald-900 via-slate-900 to-slate-900 text-white rounded-2xl p-5 border border-emerald-500/30 shadow-lg shadow-emerald-950/20">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="max-w-md">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg">
+                  <Package className="w-4 h-4" />
+                </span>
+                <h3 className="font-extrabold text-sm text-white">Add Product from Master Catalog</h3>
+              </div>
+              <p className="text-xs text-slate-300 mt-1">
+                Select an Admin-created product from the dropdown to add it to your branch inventory.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1 max-w-xl">
+              <div className="flex-1 min-w-0">
+                <select
+                  value={selectedMasterProductId}
+                  onChange={(e) => setSelectedMasterProductId(e.target.value)}
+                  disabled={notInStoreItems.length === 0}
+                  className="w-full px-3.5 py-2.5 bg-slate-950/90 text-white border border-slate-700 rounded-xl text-xs font-semibold outline-none focus:border-emerald-400 transition"
+                >
+                  <option value="">
+                    {notInStoreItems.length === 0
+                      ? '✓ All master catalog products are currently in your branch'
+                      : '-- Select an Item from Master Catalog --'}
+                  </option>
+                  {notInStoreItems.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.unit}) — Default: ₹{p.defaultPrice || p.price} {p.isAnimation ? '✨ [Animated]' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="w-28 flex-shrink-0">
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="Initial Stock"
+                  value={initialStockInput}
+                  onChange={(e) => setInitialStockInput(e.target.value)}
+                  title="Initial branch stock quantity"
+                  className="w-full px-3 py-2.5 bg-slate-950/90 text-white border border-slate-700 rounded-xl text-xs font-bold outline-none focus:border-emerald-400 text-center"
+                />
+              </div>
+
+              <button
+                onClick={handleQuickAddFromMaster}
+                disabled={!selectedMasterProductId || isAddingToStore}
+                className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-black text-xs rounded-xl shadow-md transition flex items-center justify-center gap-1.5 flex-shrink-0"
+              >
+                {isAddingToStore ? (
+                  <span>Adding...</span>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    <span>Add to Branch</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {quickAddSuccess && (
+            <div className="mt-3 py-2 px-3 bg-emerald-500/20 border border-emerald-500/40 rounded-xl text-xs font-bold text-emerald-300 flex items-center gap-2 animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span>{quickAddSuccess}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Filters Bar */}
       <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm flex flex-col md:flex-row gap-3">
@@ -283,10 +395,10 @@ export default function ItemManager({
           <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search products by name..."
+            placeholder={isAdmin ? "Search master catalog by name..." : "Search your branch items by name..."}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-green-600 transition"
+            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-emerald-600 transition"
           />
         </div>
 
@@ -294,7 +406,7 @@ export default function ItemManager({
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
-          className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold outline-none focus:border-green-600"
+          className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold outline-none focus:border-emerald-600"
         >
           <option value="ALL">All Categories</option>
           {categories.map(cat => (
@@ -302,20 +414,22 @@ export default function ItemManager({
           ))}
         </select>
 
-        {/* Stock Status Dropdown */}
-        <select
-          value={stockFilter}
-          onChange={(e) => setStockFilter(e.target.value)}
-          className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold outline-none focus:border-green-600"
-        >
-          <option value="ALL">All Stock Levels</option>
-          <option value="IN">In Stock (&gt;10)</option>
-          <option value="LOW">Low Stock (1-10)</option>
-          <option value="OUT">Out of Stock (0)</option>
-        </select>
+        {/* Stock Status Dropdown (Shopkeeper only) */}
+        {isShopkeeperRole && (
+          <select
+            value={stockFilter}
+            onChange={(e) => setStockFilter(e.target.value)}
+            className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold outline-none focus:border-emerald-600"
+          >
+            <option value="ALL">All Stock Levels</option>
+            <option value="IN">In Stock (&gt;10)</option>
+            <option value="LOW">Low Stock (1-10)</option>
+            <option value="OUT">Out of Stock (0)</option>
+          </select>
+        )}
       </div>
 
-      {/* Product Table */}
+      {/* Products Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left">
@@ -323,19 +437,19 @@ export default function ItemManager({
               <tr>
                 <th className="p-3.5">Product</th>
                 <th className="p-3.5">Category</th>
-                <th className="p-3.5">Visibility / Branch</th>
+                <th className="p-3.5">{isAdmin ? 'Branch Visibility' : 'Branch'}</th>
                 <th className="p-3.5">Unit Size</th>
-                {isStoreInventoryView ? (
-                  <>
-                    <th className="p-3.5">Branch Price</th>
-                    <th className="p-3.5">MRP</th>
-                    <th className="p-3.5">Store Stock</th>
-                  </>
-                ) : (
+                {isAdmin ? (
                   <>
                     <th className="p-3.5">Default Price</th>
                     <th className="p-3.5">MRP</th>
                     <th className="p-3.5">Total Network Stock</th>
+                  </>
+                ) : (
+                  <>
+                    <th className="p-3.5">Branch Selling Price</th>
+                    <th className="p-3.5">MRP</th>
+                    <th className="p-3.5">Branch Stock Quantity</th>
                   </>
                 )}
                 <th className="p-3.5 text-right">Actions</th>
@@ -344,13 +458,22 @@ export default function ItemManager({
             <tbody className="divide-y divide-gray-100">
               {filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="p-8 text-center text-gray-400 font-medium">
-                    No products match your filters.
+                  <td colSpan="8" className="p-10 text-center text-gray-400 font-medium">
+                    {isShopkeeperRole ? (
+                      <div className="space-y-2">
+                        <Package className="w-8 h-8 text-gray-300 mx-auto" />
+                        <p className="font-bold text-gray-600">No items in your branch inventory yet.</p>
+                        <p className="text-xs text-gray-400">
+                          Select an Admin-created product from the dropdown above to add it to your branch.
+                        </p>
+                      </div>
+                    ) : (
+                      'No products match your filters.'
+                    )}
                   </td>
                 </tr>
               ) : (
                 filteredItems.map((item) => {
-                  // Check if there is a pending or approved price change request for this item in this store
                   const pendingReq = priceRequests.find(
                     r => r.productId === item.id && r.status === 'PENDING' && (isShopkeeperRole ? (r.storeId === currentStoreId || !r.storeId || r.storeId === 'store_1') : true)
                   );
@@ -404,11 +527,6 @@ export default function ItemManager({
                             <Store className="w-3 h-3 text-amber-600" />
                             {currentUser?.shopName || currentUser?.name || 'My Store'}
                           </span>
-                        ) : item.storeId ? (
-                          <span className="inline-flex items-center gap-1 font-bold text-[10px] text-amber-900 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                            <Store className="w-3 h-3 text-amber-600" />
-                            {item.storeId} Only
-                          </span>
                         ) : !item.visibleBranches || item.visibleBranches.length === 0 || item.visibleBranches.includes('all') ? (
                           <span className="inline-flex items-center gap-1 font-bold text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                             <Layers className="w-3 h-3 text-emerald-600" /> All Branches
@@ -420,102 +538,126 @@ export default function ItemManager({
                         )}
                       </td>
 
-                      <td className="p-3.5 text-gray-500">{item.unit}</td>
-                      
-                      {isStoreInventoryView ? (
-                        <>
-                          {/* Store Selling Price with Price Change Request Option */}
-                          <td className="p-3.5">
-                            <div className="flex flex-col items-start">
-                              <span className="font-extrabold text-gray-900 text-sm">₹{displayPrice}</span>
-                              {isShopkeeperRole && (
-                                <>
-                                  {pendingReq ? (
-                                    <span className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200 animate-pulse">
-                                      Req: ₹{pendingReq.requestedPrice} (Pending)
-                                    </span>
-                                  ) : (
-                                    <div className="flex flex-col items-start gap-0.5 mt-0.5">
-                                      {approvedReq && (
-                                        <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                                          <Check className="w-2.5 h-2.5 text-emerald-600" /> Approved: ₹{displayPrice}
-                                        </span>
-                                      )}
-                                      <button
-                                        onClick={() => handleOpenPriceRequest(item)}
-                                        className="text-[10px] text-blue-600 hover:text-blue-800 font-bold inline-flex items-center gap-0.5 underline"
-                                        title="Submit price change request to Admin"
-                                      >
-                                        <TrendingUp className="w-2.5 h-2.5" /> Request Price Change
-                                      </button>
-                                    </div>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          </td>
+                      <td className="p-3.5 text-gray-500 font-medium">{item.unit}</td>
 
-                          <td className="p-3.5 text-gray-400 line-through">₹{item.mrp || item.price}</td>
-
-                          {/* Shopkeeper Stock Management */}
-                          <td className="p-3.5">
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => onUpdateStock(item.id, Math.max(0, item.stock - 1))}
-                                className="w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold flex items-center justify-center text-xs active:scale-95 transition"
-                                title="Decrease stock"
-                              >
-                                -
-                              </button>
-                              <span className={`font-black text-xs px-2.5 py-0.5 rounded ${
-                                item.stock <= 0
-                                  ? 'bg-red-100 text-red-800'
-                                  : item.stock <= 10
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : 'bg-green-100 text-green-800'
-                              }`}>
-                                {item.stock}
-                              </span>
-                              <button
-                                onClick={() => onUpdateStock(item.id, item.stock + 1)}
-                                className="w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold flex items-center justify-center text-xs active:scale-95 transition"
-                                title="Increase stock"
-                              >
-                                +
-                              </button>
-                            </div>
-                          </td>
-                        </>
-                      ) : (
+                      {isAdmin ? (
                         <>
-                          {/* Admin Master Catalog View: Default Price & MRP */}
+                          {/* Admin: Default Price & MRP */}
                           <td className="p-3.5 font-extrabold text-gray-900 text-sm">
                             ₹{item.defaultPrice || item.price || 0}
                           </td>
                           <td className="p-3.5 text-gray-500">
                             ₹{item.mrp || item.defaultPrice || item.price || 0}
                           </td>
-
-                          {/* Admin View: Stock removed from editing; show network stock summary */}
                           <td className="p-3.5">
                             <span className="text-xs font-bold text-gray-700 bg-gray-100 px-2.5 py-1 rounded-lg border border-gray-200">
-                              {item.stock || 0} units across branches
+                              {item.stock || 0} units across network
                             </span>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          {/* Shopkeeper: Branch Selling Price with Price Change Request */}
+                          <td className="p-3.5">
+                            <div className="flex flex-col items-start">
+                              <span className="font-extrabold text-gray-900 text-sm">₹{displayPrice}</span>
+                              {pendingReq ? (
+                                <span className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200 animate-pulse">
+                                  Req: ₹{pendingReq.requestedPrice} (Pending)
+                                </span>
+                              ) : (
+                                <div className="flex flex-col items-start gap-0.5 mt-0.5">
+                                  {approvedReq && (
+                                    <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                      <Check className="w-2.5 h-2.5 text-emerald-600" /> Approved: ₹{displayPrice}
+                                    </span>
+                                  )}
+                                  <button
+                                    onClick={() => handleOpenPriceRequest(item)}
+                                    className="text-[10px] text-blue-600 hover:text-blue-800 font-bold inline-flex items-center gap-0.5 underline"
+                                    title="Submit price change request to Admin"
+                                  >
+                                    <TrendingUp className="w-2.5 h-2.5" /> Request Price Change
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+
+                          <td className="p-3.5 text-gray-400 line-through">₹{item.mrp || item.price}</td>
+
+                          {/* Shopkeeper: Interactive Branch Stock Management */}
+                          <td className="p-3.5">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => onUpdateStock(item.id, Math.max(0, item.stock - 1))}
+                                className="w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold flex items-center justify-center text-xs active:scale-95 transition"
+                                title="Decrease stock by 1"
+                              >
+                                -
+                              </button>
+                              <input
+                                type="number"
+                                min="0"
+                                value={item.stock}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value, 10);
+                                  onUpdateStock(item.id, isNaN(val) ? 0 : Math.max(0, val));
+                                }}
+                                className={`w-14 text-center font-black text-xs py-1 rounded border outline-none ${
+                                  item.stock <= 0
+                                    ? 'bg-red-50 text-red-800 border-red-200'
+                                    : item.stock <= 10
+                                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                    : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                }`}
+                              />
+                              <button
+                                onClick={() => onUpdateStock(item.id, item.stock + 1)}
+                                className="w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold flex items-center justify-center text-xs active:scale-95 transition"
+                                title="Increase stock by 1"
+                              >
+                                +
+                              </button>
+                            </div>
                           </td>
                         </>
                       )}
 
-                      {/* Actions */}
+                      {/* Actions Column */}
                       <td className="p-3.5 text-right">
-                        {!isShopkeeperRole && (
+                        {isAdmin ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => handleOpenEditModal(item)}
+                              className="p-1.5 text-gray-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition"
+                              title="Edit Master Product"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm(`Are you sure you want to delete ${item.name} from Master Catalog?`)) {
+                                  onDeleteItem(item.id);
+                                }
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                              title="Delete Master Product"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
                           <button
                             onClick={() => {
-                              if (confirm(`Are you sure you want to delete ${item.name}?`)) {
-                                onDeleteItem(item.id);
+                              if (confirm(`Remove "${item.name}" from your branch inventory? It will return to the Master Catalog dropdown.`)) {
+                                if (onRemoveInventory) {
+                                  onRemoveInventory(item.id);
+                                }
                               }
                             }}
-                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                            title="Delete product"
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                            title="Remove from branch inventory"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -530,270 +672,156 @@ export default function ItemManager({
         </div>
       </div>
 
-      {/* Add Product Modal */}
-      {showAddModal && (
+      {/* Admin Master Product Add / Edit Modal (Only accessible by Admin) */}
+      {isAdmin && showAddModal && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl my-8 border">
             <div className="flex justify-between items-center border-b pb-3">
               <div>
                 <h3 className="font-extrabold text-base text-gray-900">
-                  {isStoreInventoryView ? 'Add Item to Store Inventory' : 'Add New Master Product'}
+                  {editingItem ? 'Edit Master Product' : 'Add New Master Product'}
                 </h3>
                 <p className="text-[11px] text-gray-400">
-                  {isStoreInventoryView 
-                    ? 'Add an item exclusively to your store with local stock and price'
-                    : 'Create a global master product with image, animation flag, and branch visibility'}
+                  {editingItem
+                    ? 'Update global product definitions, default price, image, and branch visibility'
+                    : 'Create a global master product available to shopkeepers across branches'}
                 </p>
               </div>
               <button 
-                onClick={() => setShowAddModal(false)}
+                onClick={() => {
+                  setShowAddModal(false);
+                  setEditingItem(null);
+                }}
                 className="text-gray-400 hover:text-gray-600 font-bold text-lg"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleAddSubmit} className="space-y-4 text-xs">
+            <form onSubmit={handleAdminFormSubmit} className="space-y-4 text-xs">
               
-              {/* If Shopkeeper: Choose between existing Master product or creating a new product */}
-              {isStoreInventoryView ? (
-                <div className="space-y-3">
-                  <div>
-                    <label className="font-bold text-gray-700 block mb-1">Select Master Product</label>
-                    <select
-                      required
-                      value={newItem.productId}
-                      onChange={(e) => setNewItem({ ...newItem, productId: e.target.value })}
-                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
-                    >
-                      <option value="">-- Choose a product --</option>
-                      <option value="CREATE_NEW" className="font-bold text-green-700">+ Create a completely new Product for my Branch</option>
-                      {notInStoreItems.length === 0 ? (
-                        <option value="" disabled>All global products are already in your store!</option>
-                      ) : (
-                        notInStoreItems.map(p => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} ({p.unit})
-                          </option>
-                        ))
-                      )}
-                    </select>
-                  </div>
-                  
-                  {newItem.productId === 'CREATE_NEW' && (
-                    <div className="space-y-3 p-3 bg-green-50/50 rounded-xl border border-green-200">
-                      <div>
-                        <label className="font-bold text-gray-700 block mb-1">Product Name <span className="text-red-500">*</span></label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="e.g. Amul Butter 100g"
-                          value={newItem.name}
-                          onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
-                          className="w-full p-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-green-600"
-                        />
-                      </div>
+              <div>
+                <label className="font-bold text-gray-700 block mb-1">Product Name <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Amul Gold Full Cream Milk"
+                  value={newItem.name}
+                  onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
+                  className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-emerald-600"
+                />
+              </div>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="font-bold text-gray-700 block mb-1">Category</label>
-                          <select
-                            value={newItem.categoryId}
-                            onChange={(e) => setNewItem({ ...newItem, categoryId: e.target.value })}
-                            className="w-full p-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-green-600"
-                          >
-                            {categories.map(c => (
-                              <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="font-bold text-gray-700 block mb-1">Unit / Pack Weight</label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="e.g. 500 ml or 1 kg"
-                            value={newItem.unit}
-                            onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
-                            className="w-full p-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-green-600"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="text-[11px] text-green-800 font-semibold flex items-center gap-1">
-                        <Check className="w-3.5 h-3.5 text-green-600" />
-                        This product will be visible exclusively to your store ({currentUser?.shopName || 'your branch'}).
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Shopkeeper Price and Stock Management Inputs */}
-                  <div className="grid grid-cols-3 gap-3 pt-1">
-                    <div>
-                      <label className="font-bold text-gray-700 block mb-1">Branch Price (₹) <span className="text-red-500">*</span></label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        required
-                        placeholder="45"
-                        value={newItem.price}
-                        onChange={(e) => setNewItem({ ...newItem, price: e.target.value })}
-                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600 font-bold"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="font-bold text-gray-700 block mb-1">MRP (₹)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        placeholder="50"
-                        value={newItem.mrp}
-                        onChange={(e) => setNewItem({ ...newItem, mrp: e.target.value })}
-                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="font-bold text-gray-700 block mb-1">Initial Stock <span className="text-red-500">*</span></label>
-                      <input
-                        type="number"
-                        required
-                        placeholder="30"
-                        value={newItem.stock}
-                        onChange={(e) => setNewItem({ ...newItem, stock: parseInt(e.target.value, 10) })}
-                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600 font-bold"
-                      />
-                    </div>
-                  </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Category</label>
+                  <select
+                    value={newItem.categoryId}
+                    onChange={(e) => setNewItem({ ...newItem, categoryId: e.target.value })}
+                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-emerald-600 font-semibold"
+                  >
+                    {categories.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
                 </div>
-              ) : (
-                /* Admin Master Catalog Form */
-                <div className="space-y-3">
-                  <div>
-                    <label className="font-bold text-gray-700 block mb-1">Product Name <span className="text-red-500">*</span></label>
+
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Unit / Pack Weight</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 500 ml or 1 kg"
+                    value={newItem.unit}
+                    onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
+                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-emerald-600"
+                  />
+                </div>
+              </div>
+
+              {/* Pricing (Default Price & MRP) - Stock is intentionally excluded! */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Default Selling Price (₹) <span className="text-red-500">*</span></label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    placeholder="e.g. 32"
+                    value={newItem.defaultPrice}
+                    onChange={(e) => setNewItem({ ...newItem, defaultPrice: e.target.value, price: e.target.value })}
+                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-emerald-600 font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">MRP (₹)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="e.g. 35"
+                    value={newItem.mrp}
+                    onChange={(e) => setNewItem({ ...newItem, mrp: e.target.value })}
+                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-emerald-600"
+                  />
+                </div>
+              </div>
+
+              {/* Stock Notice */}
+              <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-blue-800 text-[11px] leading-relaxed">
+                <strong>Branch Stock Isolation:</strong> As Admin, you manage the Master Product definition and default pricing. Individual shopkeepers select items from their portal dropdown and manage stock quantities independently.
+              </div>
+
+              {/* Branch Visibility Selector */}
+              <div className="space-y-2 pt-1 border-t">
+                <label className="font-bold text-gray-700 block">Branch Visibility</label>
+                <div className="flex gap-4 items-center">
+                  <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-gray-700">
                     <input
-                      type="text"
-                      required
-                      placeholder="e.g. Amul Gold Full Cream Milk"
-                      value={newItem.name}
-                      onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
-                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
+                      type="radio"
+                      name="visibility"
+                      checked={newItem.visibilityMode === 'ALL'}
+                      onChange={() => setNewItem({ ...newItem, visibilityMode: 'ALL', visibleBranches: ['all'] })}
+                      className="text-emerald-700"
                     />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="font-bold text-gray-700 block mb-1">Category</label>
-                      <select
-                        value={newItem.categoryId}
-                        onChange={(e) => setNewItem({ ...newItem, categoryId: e.target.value })}
-                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
-                      >
-                        {categories.map(c => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="font-bold text-gray-700 block mb-1">Unit / Pack Weight</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. 500 ml or 1 kg"
-                        value={newItem.unit}
-                        onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
-                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Pricing (Default Price & MRP) - Stock is excluded from Admin! */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="font-bold text-gray-700 block mb-1">Default Selling Price (₹)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        placeholder="e.g. 32"
-                        value={newItem.defaultPrice}
-                        onChange={(e) => setNewItem({ ...newItem, defaultPrice: e.target.value, price: e.target.value })}
-                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600 font-bold"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="font-bold text-gray-700 block mb-1">MRP (₹)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        placeholder="e.g. 35"
-                        value={newItem.mrp}
-                        onChange={(e) => setNewItem({ ...newItem, mrp: e.target.value })}
-                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Stock Management Notice */}
-                  <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-blue-800 text-[11px]">
-                    <strong>Stock Management:</strong> As Admin, you define the Master Product & default price. Individual shopkeepers add and manage their own branch inventory stock quantities independently.
-                  </div>
-
-                  {/* Branch Visibility Selector */}
-                  <div className="space-y-2 pt-1 border-t">
-                    <label className="font-bold text-gray-700 block">Branch Visibility</label>
-                    <div className="flex gap-4 items-center">
-                      <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-gray-700">
-                        <input
-                          type="radio"
-                          name="visibility"
-                          checked={newItem.visibilityMode === 'ALL'}
-                          onChange={() => setNewItem({ ...newItem, visibilityMode: 'ALL', visibleBranches: ['all'] })}
-                          className="text-green-700"
-                        />
-                        All Branches (Global)
-                      </label>
-                      <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-gray-700">
-                        <input
-                          type="radio"
-                          name="visibility"
-                          checked={newItem.visibilityMode === 'SPECIFIC'}
-                          onChange={() => setNewItem({ ...newItem, visibilityMode: 'SPECIFIC', visibleBranches: [] })}
-                          className="text-green-700"
-                        />
-                        Specific Branches
-                      </label>
-                    </div>
-
-                    {newItem.visibilityMode === 'SPECIFIC' && (
-                      <div className="p-3 bg-gray-50 rounded-xl border space-y-2 mt-2">
-                        <span className="text-[11px] text-gray-500 font-medium block">
-                          Select the branches where this product should be visible:
-                        </span>
-                        <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                          {stores.map(st => (
-                            <label key={st.id} className="flex items-center gap-2 cursor-pointer text-gray-800 hover:text-black">
-                              <input
-                                type="checkbox"
-                                checked={newItem.visibleBranches.includes(st.id)}
-                                onChange={() => handleToggleBranchVisibility(st.id)}
-                                className="rounded text-green-700"
-                              />
-                              <span className="font-semibold">{st.name}</span>
-                              <span className="text-[10px] text-gray-400">({st.id})</span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                    All Branches (Global)
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-gray-700">
+                    <input
+                      type="radio"
+                      name="visibility"
+                      checked={newItem.visibilityMode === 'SPECIFIC'}
+                      onChange={() => setNewItem({ ...newItem, visibilityMode: 'SPECIFIC', visibleBranches: [] })}
+                      className="text-emerald-700"
+                    />
+                    Specific Branches
+                  </label>
                 </div>
-              )}
 
-              {/* Product Image Upload & Animation Checkbox (Common to both Admin and Shopkeeper) */}
+                {newItem.visibilityMode === 'SPECIFIC' && (
+                  <div className="p-3 bg-gray-50 rounded-xl border space-y-2 mt-2">
+                    <span className="text-[11px] text-gray-500 font-medium block">
+                      Select the branches where this product should be visible:
+                    </span>
+                    <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                      {stores.map(st => (
+                        <label key={st.id} className="flex items-center gap-2 cursor-pointer text-gray-800 hover:text-black">
+                          <input
+                            type="checkbox"
+                            checked={newItem.visibleBranches.includes(st.id)}
+                            onChange={() => handleToggleBranchVisibility(st.id)}
+                            className="rounded text-emerald-700"
+                          />
+                          <span className="font-semibold">{st.name}</span>
+                          <span className="text-[10px] text-gray-400">({st.id})</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Product Image Upload & Animation Checkbox */}
               <div className="space-y-3 pt-2 border-t">
                 <div className="flex items-center justify-between">
                   <label className="font-bold text-gray-700">Product Image</label>
@@ -801,14 +829,14 @@ export default function ItemManager({
                     <button
                       type="button"
                       onClick={() => setImageUploadType('file')}
-                      className={`px-2 py-0.5 rounded font-bold transition ${imageUploadType === 'file' ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600'}`}
+                      className={`px-2 py-0.5 rounded font-bold transition ${imageUploadType === 'file' ? 'bg-emerald-700 text-white' : 'bg-gray-100 text-gray-600'}`}
                     >
                       File Upload
                     </button>
                     <button
                       type="button"
                       onClick={() => setImageUploadType('url')}
-                      className={`px-2 py-0.5 rounded font-bold transition ${imageUploadType === 'url' ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600'}`}
+                      className={`px-2 py-0.5 rounded font-bold transition ${imageUploadType === 'url' ? 'bg-emerald-700 text-white' : 'bg-gray-100 text-gray-600'}`}
                     >
                       Image URL
                     </button>
@@ -817,7 +845,7 @@ export default function ItemManager({
 
                 {imageUploadType === 'file' ? (
                   <div className="flex items-center gap-3">
-                    <label className="flex-1 border-2 border-dashed border-gray-300 hover:border-green-600 rounded-xl p-3 flex flex-col items-center justify-center cursor-pointer bg-gray-50 hover:bg-green-50/30 transition text-center">
+                    <label className="flex-1 border-2 border-dashed border-gray-300 hover:border-emerald-600 rounded-xl p-3 flex flex-col items-center justify-center cursor-pointer bg-gray-50 hover:bg-emerald-50/30 transition text-center">
                       <Upload className="w-5 h-5 text-gray-400 mb-1" />
                       <span className="font-bold text-gray-700 text-[11px]">Click to upload product image</span>
                       <span className="text-[10px] text-gray-400">Supports PNG, JPG, GIF, WebP (up to 15MB)</span>
@@ -841,7 +869,7 @@ export default function ItemManager({
                       placeholder="https://..."
                       value={newItem.image}
                       onChange={(e) => setNewItem({ ...newItem, image: e.target.value })}
-                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
+                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-emerald-600"
                     />
                   </div>
                 )}
@@ -856,7 +884,7 @@ export default function ItemManager({
                     className="mt-0.5 text-purple-600 rounded"
                   />
                   <label htmlFor="animationCheckbox" className="cursor-pointer">
-                    <span className="font-extrabold text-purple-900 block flex items-center gap-1">
+                    <span className="font-extrabold text-purple-900 flex items-center gap-1">
                       <Sparkles className="w-3.5 h-3.5 text-purple-600" /> Animation Image
                     </span>
                     <span className="text-[10px] text-purple-700">
@@ -870,16 +898,19 @@ export default function ItemManager({
               <div className="pt-2 flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setEditingItem(null);
+                  }}
                   className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-green-700 hover:bg-green-800 text-white font-extrabold rounded-xl shadow transition"
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl shadow transition"
                 >
-                  Save Product
+                  {editingItem ? 'Save Changes' : 'Create Master Product'}
                 </button>
               </div>
             </form>
@@ -951,7 +982,7 @@ export default function ItemManager({
                   value={priceRequestReason}
                   onChange={(e) => setPriceRequestReason(e.target.value)}
                   placeholder="e.g. Local competitor selling at ₹48, or higher distributor procurement cost"
-                  className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-600"
+                  className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-emerald-600"
                 />
               </div>
 

@@ -25,8 +25,7 @@ const TAB_TITLES = {
   stores: { title: 'Store Management', section: 'Stores & Network' },
   'store-managers': { title: 'Store Managers', section: 'People & Access' },
   categories: { title: 'Categories & Brands', section: 'Catalog' },
-  items: { title: 'Product Catalog', section: 'Catalog' },
-  'store-inventory': { title: 'Store Inventory', section: 'Catalog' },
+  items: { title: 'Master Catalog', section: 'Catalog' },
   'price-requests': { title: 'Branch Price Requests', section: 'Catalog' },
   orders: { title: 'Orders & Fulfillment', section: 'Logistics' },
   drivers: { title: 'Delivery Fleet', section: 'Logistics' },
@@ -95,7 +94,9 @@ export default function AdminHeader({
   const pendingPriceReqs = priceRequests.filter(r => r.status === 'PENDING' && (isShopkeeper ? r.storeId === currentUser?.storeId : true));
   const totalAlerts = pendingOrders.length + (lowStockItems.length > 0 ? 1 : 0) + pendingPriceReqs.length;
 
-  const currentTabMeta = TAB_TITLES[activeTab] || { title: 'Operations', section: 'Admin' };
+  const currentTabMeta = activeTab === 'items'
+    ? { title: isAdmin ? 'Master Catalog' : 'Store Inventory', section: 'Catalog' }
+    : (TAB_TITLES[activeTab] || { title: 'Operations', section: 'Admin' });
 
   // Filtered search results for quick command palette
   const searchResults = searchQuery.trim() === '' ? [] : [

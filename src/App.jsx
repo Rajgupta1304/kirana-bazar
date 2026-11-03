@@ -223,6 +223,23 @@ export default function App() {
     loadData(currentUser);
   };
 
+  const handleUpdateItem = async (id, itemData) => {
+    let updated;
+    try {
+      updated = await apiClient.updateProduct(id, itemData);
+    } catch (e) {
+      console.warn('Update product error:', e);
+    }
+    loadData();
+    return updated;
+  };
+
+  const handleRemoveInventory = async (productId) => {
+    const storeId = (currentUser?.role === 'Shopkeeper' || currentUser?.role === 'Store Manager') ? currentUser.storeId : null;
+    await apiClient.removeInventory(productId, storeId);
+    loadData(currentUser);
+  };
+
   const handleDeleteItem = async (id) => {
     await apiClient.deleteProduct(id);
     db.deleteItem(id);
@@ -433,7 +450,7 @@ export default function App() {
                     onNavigate={(tab) => {
                       const role = currentUser.role;
                       if (role === 'Admin' || role === 'Super Admin') {
-                        if (['dashboard', 'customers', 'store-managers', 'stores', 'items', 'store-inventory', 'categories', 'drivers', 'orders', 'price-requests'].includes(tab)) setAdminTab(tab);
+                        if (['dashboard', 'customers', 'store-managers', 'stores', 'items', 'categories', 'drivers', 'orders', 'price-requests'].includes(tab)) setAdminTab(tab);
                       } else if (role === 'Shopkeeper' || role === 'Store Manager') {
                         if (['dashboard', 'items', 'categories', 'orders', 'drivers', 'price-requests'].includes(tab)) setAdminTab(tab);
                       }
@@ -472,8 +489,8 @@ export default function App() {
                   />
                 )}
 
-                {/* Admin & Shopkeeper Operations: Product Catalog, Add Items, Stock Management */}
-                {['items', 'store-inventory'].includes(adminTab) && ['Shopkeeper', 'Store Manager', 'Admin', 'Super Admin'].includes(currentUser.role) && (
+                {/* Master Catalog (Admin) & Branch Inventory (Shopkeeper) */}
+                {adminTab === 'items' && ['Shopkeeper', 'Store Manager', 'Admin', 'Super Admin'].includes(currentUser.role) && (
                   <ItemManager
                     viewType={adminTab}
                     items={items}
@@ -481,7 +498,9 @@ export default function App() {
                     stores={stores}
                     priceRequests={priceRequests}
                     onAddItem={handleAddItem}
+                    onUpdateItem={handleUpdateItem}
                     onAddInventory={handleAddInventory}
+                    onRemoveInventory={handleRemoveInventory}
                     onUpdateStock={handleUpdateStock}
                     onDeleteItem={handleDeleteItem}
                     onCreatePriceRequest={handleCreatePriceRequest}

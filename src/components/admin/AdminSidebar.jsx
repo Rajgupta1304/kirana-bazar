@@ -91,15 +91,9 @@ export default function AdminSidebar({
           id: 'items',
           label: isAdmin ? 'Master Catalog' : 'Store Inventory',
           icon: isAdmin ? Layers : Package,
-          badge: analytics?.lowStockCount ? `${analytics.lowStockCount} Low` : null,
+          badge: (isShopkeeper && analytics?.lowStockCount) ? `${analytics.lowStockCount} Low` : null,
           badgeType: 'warning',
           roles: ['Admin', 'Super Admin', 'Shopkeeper', 'Store Manager']
-        },
-        {
-          id: 'store-inventory',
-          label: 'Store Inventory',
-          icon: Package,
-          roles: ['Admin', 'Super Admin']
         },
         {
           id: 'price-requests',

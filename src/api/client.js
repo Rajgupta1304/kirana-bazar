@@ -50,6 +50,17 @@ export const apiClient = {
     return await res.json();
   },
 
+  async removeInventory(productId, storeId = '') {
+    const url = storeId 
+      ? `${API_BASE_URL}/products/inventory/${encodeURIComponent(productId)}?storeId=${encodeURIComponent(storeId)}`
+      : `${API_BASE_URL}/products/inventory/${encodeURIComponent(productId)}`;
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    return await res.json();
+  },
+
   async updateStock(id, stock, storeId = 'store_1') {
     const res = await fetch(`${API_BASE_URL}/products/${id}/stock`, {
       method: 'PATCH',
