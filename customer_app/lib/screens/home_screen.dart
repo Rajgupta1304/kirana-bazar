@@ -1,5 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
 import '../api_service.dart';
 import '../models.dart';
 import '../theme.dart';
@@ -15,17 +18,39 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   List<Product> products = [];
   List<Category> categories = [];
+  List<BannerItem> banners = [];
+  List<StoreBranch> stores = [];
   bool isLoading = true;
   String searchQuery = '';
   int _lastTab = 0;
   String _lastSelectedCat = 'ALL';
+  String _lastStoreId = 'store_1';
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
+
+  // Active Banner Auto-Slide Controller & Timer
+  final PageController _bannerPageController = PageController();
+  int _currentBannerIndex = 0;
+  Timer? _bannerSliderTimer;
 
   @override
   void initState() {
     super.initState();
     loadData();
+  }
+
+  void _setupBannerSlider() {
+    _bannerSliderTimer?.cancel();
+    if (banners.length <= 1) return;
+    _bannerSliderTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted || !_bannerPageController.hasClients || banners.isEmpty) return;
+      final nextIndex = (_currentBannerIndex + 1) % banners.length;
+      _bannerPageController.animateToPage(
+        nextIndex,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    });
   }
 
   @override
@@ -34,6 +59,14 @@ class _HomeScreenState extends State<HomeScreen> {
     final cart = context.watch<CartProvider>();
     final currentTab = cart.selectedTabIndex;
     final currentCat = cart.selectedCategory;
+    final currentStoreId = cart.selectedStoreId;
+
+    if (currentStoreId != _lastStoreId) {
+      _lastStoreId = currentStoreId;
+      Future.microtask(() {
+        if (mounted) loadData();
+      });
+    }
 
     // When switching back to Home tab or switching category, reset search and scroll to top
     if (currentTab == 0 && (_lastTab != 0 || currentCat != _lastSelectedCat)) {
@@ -58,28 +91,44 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> loadData() async {
     setState(() => isLoading = true);
+    final cart = context.read<CartProvider>();
+    final storeId = cart.selectedStoreId;
+
     try {
-      var prods = await ApiService.getProducts(storeId: 'store_1');
-      if (prods.isEmpty) {
-        prods = await ApiService.getProducts();
-      }
-      final cats = await ApiService.getCategories();
+      final results = await Future.wait([
+        ApiService.getProducts(storeId: storeId),
+        ApiService.getCategories(),
+        ApiService.getBanners(),
+        ApiService.getStores(),
+      ]);
+
+      final prods = results[0] as List<Product>;
+      final cats = results[1] as List<Category>;
+      final bns = results[2] as List<BannerItem>;
+      final strs = results[3] as List<StoreBranch>;
+
       if (mounted) {
         setState(() {
+          // Display products based on customer's location/branch
           final inStoreProds = prods.where((p) => p.inStore).toList();
           products = inStoreProds.isNotEmpty ? inStoreProds : prods;
           if (products.isEmpty) {
             products = ApiService.defaultProducts;
           }
           categories = cats.isNotEmpty ? cats : ApiService.defaultCategories;
+          banners = bns;
+          stores = strs;
           isLoading = false;
         });
+        _setupBannerSlider();
       }
     } catch (_) {
       if (mounted) {
         setState(() {
           products = ApiService.defaultProducts;
           categories = ApiService.defaultCategories;
+          banners = [];
+          stores = [];
           isLoading = false;
         });
       }
@@ -88,6 +137,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _bannerSliderTimer?.cancel();
+    _bannerPageController.dispose();
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -304,6 +355,498 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _showStoreSelectorSheet(BuildContext context, CartProvider cart) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(22),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.store, color: Color(0xFF0C8CE9), size: 24),
+                    SizedBox(width: 8),
+                    Text(
+                      'Select Store Branch',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                    ),
+                  ],
+                ),
+                IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+              ],
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Item inventory, prices, and stock availability are managed per branch:',
+              style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+            ),
+            const SizedBox(height: 16),
+            ...(stores.isNotEmpty ? stores : [
+              StoreBranch(id: 'store_1', name: 'Sector 14 Hub', address: 'Main Market, Sector 14', city: 'Gurugram'),
+              StoreBranch(id: 'store_2', name: 'Cyber City Hub', address: 'DLF Phase 2', city: 'Gurugram'),
+            ]).map((store) {
+              final isSelected = store.id == cart.selectedStoreId;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isSelected ? const Color(0xFF0C8CE9) : Colors.grey.shade200,
+                    width: isSelected ? 2 : 1,
+                  ),
+                ),
+                child: ListTile(
+                  onTap: () {
+                    cart.setStore(store.id, store.name);
+                    Navigator.pop(ctx);
+                    loadData();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Switched store to: ${store.name}'),
+                        backgroundColor: const Color(0xFF0C831F),
+                      ),
+                    );
+                  },
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: isSelected ? const Color(0xFF0C8CE9).withOpacity(0.15) : Colors.grey.shade100,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.storefront, color: isSelected ? const Color(0xFF0C8CE9) : Colors.grey.shade700, size: 20),
+                  ),
+                  title: Text(
+                    store.name,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
+                      color: isSelected ? const Color(0xFF0C8CE9) : const Color(0xFF0F172A),
+                    ),
+                  ),
+                  subtitle: Text(
+                    '${store.address}, ${store.city}',
+                    style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                  ),
+                  trailing: isSelected ? const Icon(Icons.check_circle, color: Color(0xFF0C8CE9), size: 22) : null,
+                ),
+              );
+            }),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openVoiceSearchModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => Container(
+          padding: const EdgeInsets.all(24),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [Color(0xFFEF4444), Color(0xFFDC2626)]),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(color: const Color(0xFFEF4444).withOpacity(0.35), blurRadius: 18, offset: const Offset(0, 6)),
+                  ],
+                ),
+                child: const Icon(Icons.mic, color: Colors.white, size: 38),
+              ),
+              const SizedBox(height: 16),
+              const Text('Voice Search', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
+              const SizedBox(height: 6),
+              const Text('Speak now or tap a voice prompt keyword:', style: TextStyle(fontSize: 13, color: Color(0xFF64748B))),
+              const SizedBox(height: 18),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
+                children: [
+                  'Amul Milk',
+                  'Brown Bread',
+                  'Aashirvaad Atta',
+                  'Nescafe Coffee',
+                  'Fortune Sunflower Oil',
+                  'Lays Chips',
+                  'Maggi Noodles',
+                  'Basmati Rice',
+                ].map((term) {
+                  return ActionChip(
+                    backgroundColor: const Color(0xFFEFF6FF),
+                    side: const BorderSide(color: Color(0xFF93C5FD)),
+                    label: Text(term, style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1D4ED8), fontSize: 12)),
+                    avatar: const Icon(Icons.mic, size: 14, color: Color(0xFF2563EB)),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _searchController.text = term;
+                      setState(() => searchQuery = term);
+                    },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 14),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openImageSearchModal(BuildContext context) async {
+    final picker = ImagePicker();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          bool isSearching = false;
+
+          Future<void> performSearch(String hint, {String? base64Data}) async {
+            setModalState(() => isSearching = true);
+            final cart = context.read<CartProvider>();
+            final matched = await ApiService.searchByImage(
+              imageBase64: base64Data,
+              visualHint: hint,
+              storeId: cart.selectedStoreId,
+            );
+            if (mounted) {
+              Navigator.pop(ctx);
+              setState(() {
+                if (matched.isNotEmpty) {
+                  products = matched;
+                  searchQuery = hint.isNotEmpty ? hint : 'Visual Search';
+                  _searchController.text = searchQuery;
+                } else {
+                  searchQuery = hint;
+                  _searchController.text = hint;
+                }
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Visual Search: Found ${matched.length} matching products'),
+                  backgroundColor: const Color(0xFF0C831F),
+                ),
+              );
+            }
+          }
+
+          return Container(
+            padding: const EdgeInsets.all(24),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFEFF6FF),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.camera_alt, color: Color(0xFF0C8CE9), size: 24),
+                    ),
+                    const SizedBox(width: 10),
+                    const Text(
+                      'Visual Product Search',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Take a photo or upload product packaging to find items in our store',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                ),
+                const SizedBox(height: 20),
+
+                if (isSearching)
+                  const Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Column(
+                      children: [
+                        CircularProgressIndicator(color: AppTheme.blinkitGreen),
+                        SizedBox(height: 12),
+                        Text('Analyzing packaging & visual features...', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  )
+                else ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () async {
+                            try {
+                              final XFile? photo = await picker.pickImage(source: ImageSource.camera, maxWidth: 800);
+                              if (photo != null) {
+                                final bytes = await photo.readAsBytes();
+                                final b64 = base64Encode(bytes);
+                                await performSearch(photo.name, base64Data: b64);
+                              }
+                            } catch (e) {
+                              await performSearch('Groceries');
+                            }
+                          },
+                          icon: const Icon(Icons.photo_camera, color: Colors.white),
+                          label: const Text('Take Photo', style: TextStyle(fontWeight: FontWeight.w800, color: Colors.white)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0C8CE9),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            try {
+                              final XFile? image = await picker.pickImage(source: ImageSource.gallery, maxWidth: 800);
+                              if (image != null) {
+                                final bytes = await image.readAsBytes();
+                                final b64 = base64Encode(bytes);
+                                await performSearch(image.name, base64Data: b64);
+                              }
+                            } catch (e) {
+                              await performSearch('Groceries');
+                            }
+                          },
+                          icon: const Icon(Icons.photo_library, color: Color(0xFF0C8CE9)),
+                          label: const Text('Upload Photo', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF0C8CE9))),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFF0C8CE9), width: 1.5),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'OR SEARCH BY PACKAGING SAMPLES:',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF64748B), letterSpacing: 0.5),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      'Milk Pouch 🥛',
+                      'Atta Bag 🌾',
+                      'Cooking Oil 🛢️',
+                      'Tea Box ☕',
+                      'Chips Packet 🍿',
+                      'Chocolates 🍫',
+                    ].map((sample) {
+                      final cleanName = sample.split(' ').first;
+                      return ActionChip(
+                        backgroundColor: Colors.grey.shade100,
+                        label: Text(sample, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        onPressed: () => performSearch(cleanName),
+                      );
+                    }).toList(),
+                  ),
+                ],
+                const SizedBox(height: 10),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildBannerCarousel() {
+    if (banners.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
+      child: Column(
+        children: [
+          SizedBox(
+            height: 120,
+            child: PageView.builder(
+              controller: _bannerPageController,
+              onPageChanged: (idx) => setState(() => _currentBannerIndex = idx),
+              itemCount: banners.length,
+              itemBuilder: (context, index) {
+                final b = banners[index];
+                return GestureDetector(
+                  onTap: () {
+                    final cart = context.read<CartProvider>();
+                    if (b.targetType == 'category' && b.targetValue.isNotEmpty) {
+                      cart.setSelectedCategory(b.targetValue);
+                    } else if (b.targetType == 'search' && b.targetValue.isNotEmpty) {
+                      _searchController.text = b.targetValue;
+                      setState(() => searchQuery = b.targetValue);
+                    }
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        )
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.network(
+                            b.image,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              color: const Color(0xFF0284C7),
+                              child: const Icon(Icons.campaign, color: Colors.white, size: 40),
+                            ),
+                          ),
+                          Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.black.withOpacity(0.75),
+                                  Colors.black.withOpacity(0.2),
+                                  Colors.transparent,
+                                ],
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  b.title,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: -0.3,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                if (b.subtitle.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    b.subtitle,
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFDE047),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Text(
+                                    'Shop Now ➔',
+                                    style: TextStyle(
+                                      color: Colors.black,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          if (banners.length > 1) ...[
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: banners.asMap().entries.map((entry) {
+                final isSelected = entry.key == _currentBannerIndex;
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  width: isSelected ? 16 : 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: isSelected ? const Color(0xFF0C8CE9) : Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
@@ -472,6 +1015,40 @@ class _HomeScreenState extends State<HomeScreen> {
                                           ),
                                         ),
                                       ),
+                                      const SizedBox(height: 4),
+                                      GestureDetector(
+                                        onTap: () => _showStoreSelectorSheet(context, cart),
+                                        behavior: HitTestBehavior.opaque,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFFDE047).withOpacity(0.2),
+                                            borderRadius: BorderRadius.circular(16),
+                                            border: Border.all(color: const Color(0xFFFDE047).withOpacity(0.5)),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(Icons.store, color: Color(0xFFFDE047), size: 12),
+                                              const SizedBox(width: 4),
+                                              Flexible(
+                                                child: Text(
+                                                  'Branch: ${cart.selectedStoreName}',
+                                                  style: const TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: Colors.white,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 2),
+                                              const Icon(Icons.arrow_drop_down, color: Colors.white, size: 16),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -531,7 +1108,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                             const SizedBox(height: 12),
 
-                            // Search Bar
+                            // 3-Method Search Bar: Text, Voice, and Visual Image Search
                             Container(
                               height: 48,
                               decoration: BoxDecoration(
@@ -545,27 +1122,47 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ],
                               ),
-                              child: TextField(
-                                controller: _searchController,
-                                onChanged: (val) => setState(() => searchQuery = val),
-                                decoration: InputDecoration(
-                                  hintText: 'Search "milk", "tea", "dal", "chips"...',
-                                  hintStyle: const TextStyle(color: Colors.black45, fontSize: 13, fontWeight: FontWeight.w500),
-                                  prefixIcon: const Icon(Icons.search, color: Colors.black87, size: 22),
-                                  suffixIcon: searchQuery.isNotEmpty
-                                      ? IconButton(
-                                          icon: const Icon(Icons.close, color: Colors.black54, size: 20),
-                                          onPressed: () {
-                                            _searchController.clear();
-                                            setState(() => searchQuery = '');
-                                          },
-                                        )
-                                      : const Icon(Icons.mic_none, color: Colors.black87, size: 22),
-                                  border: InputBorder.none,
-                                  enabledBorder: InputBorder.none,
-                                  focusedBorder: InputBorder.none,
-                                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                                ),
+                              child: Row(
+                                children: [
+                                  const Padding(
+                                    padding: EdgeInsets.only(left: 12, right: 8),
+                                    child: Icon(Icons.search, color: Colors.black87, size: 22),
+                                  ),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _searchController,
+                                      onChanged: (val) => setState(() => searchQuery = val),
+                                      decoration: const InputDecoration(
+                                        hintText: 'Search "milk", "tea", "dal", "chips"...',
+                                        hintStyle: TextStyle(color: Colors.black45, fontSize: 13, fontWeight: FontWeight.w500),
+                                        border: InputBorder.none,
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.symmetric(vertical: 12),
+                                      ),
+                                    ),
+                                  ),
+                                  if (searchQuery.isNotEmpty)
+                                    IconButton(
+                                      icon: const Icon(Icons.close, color: Colors.black54, size: 20),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        setState(() => searchQuery = '');
+                                      },
+                                    ),
+                                  // Method B: Voice Search
+                                  IconButton(
+                                    icon: const Icon(Icons.mic, color: Color(0xFFEF4444), size: 22),
+                                    tooltip: 'Voice Search',
+                                    onPressed: () => _openVoiceSearchModal(context),
+                                  ),
+                                  // Method C: Image / Camera Visual Search
+                                  IconButton(
+                                    icon: const Icon(Icons.camera_alt, color: Color(0xFF0C8CE9), size: 22),
+                                    tooltip: 'Photo / Visual Search',
+                                    onPressed: () => _openImageSearchModal(context),
+                                  ),
+                                  const SizedBox(width: 4),
+                                ],
                               ),
                             ),
 
@@ -746,99 +1343,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
 
-                    // Show Banner & Frequently Bought ONLY when on 'ALL' category and not searching
+                    // Show Dynamic Active Banner Slider & Frequently Bought ONLY when on 'ALL' category and not searching
                     if (selectedCategory == 'ALL' && searchQuery.trim().isEmpty) ...[
-                      // Hero Promotional Banner (NESCAFE Cold Coffee) - Sleek & Compact
+                      // Active Promotional Banner Slider (Admin Managed with auto-slide & manual swipe)
                       SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
-                          child: Container(
-                            height: 90,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF0284C7), Color(0xFF0369A1)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF0284C7).withOpacity(0.25),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 3),
-                                )
-                              ],
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  flex: 3,
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const Text(
-                                        'Enjoy Rich Creamy',
-                                        style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w600),
-                                      ),
-                                      RichText(
-                                        text: const TextSpan(
-                                          children: [
-                                            TextSpan(
-                                              text: 'NESCAFÉ ',
-                                              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic),
-                                            ),
-                                            TextSpan(
-                                              text: 'Cold Coffee',
-                                              style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(height: 3),
-                                      Row(
-                                        children: [
-                                          const Text(
-                                            'Up to 33% OFF',
-                                            style: TextStyle(color: Color(0xFFFDE047), fontSize: 12, fontWeight: FontWeight.w900),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          GestureDetector(
-                                            onTap: () {
-                                              cart.setSelectedCategory('cat_14'); // Tea & Coffee
-                                            },
-                                            child: Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                                              decoration: BoxDecoration(
-                                                color: Colors.white,
-                                                borderRadius: BorderRadius.circular(16),
-                                              ),
-                                              child: const Text(
-                                                'Shop now',
-                                                style: TextStyle(color: Color(0xFF0369A1), fontWeight: FontWeight.w900, fontSize: 10),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Container(
-                                  width: 80,
-                                  alignment: Alignment.centerRight,
-                                  child: Image.network(
-                                    'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=240&q=80',
-                                    height: 72,
-                                    fit: BoxFit.contain,
-                                    errorBuilder: (c, e, s) => const Icon(Icons.coffee, size: 40, color: Colors.white70),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
+                        child: _buildBannerCarousel(),
                       ),
 
                       // "Frequently bought" Section Header
@@ -1308,7 +1817,7 @@ class _ProductCard extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                     decoration: BoxDecoration(
-                      color: product.stock > 0 ? AppTheme.blinkitGreen : Colors.red.shade700,
+                      color: product.stock > 0 ? AppTheme.blinkitGreen : const Color(0xFFDC2626),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -1316,7 +1825,7 @@ class _ProductCard extends StatelessWidget {
                         Icon(product.stock > 0 ? Icons.timer : Icons.block, size: 10, color: Colors.white),
                         const SizedBox(width: 4),
                         Text(
-                          product.stock > 0 ? '8 MINS' : 'SOLD OUT',
+                          product.stock > 0 ? '8 MINS' : 'OUT OF STOCK',
                           style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                         ),
                       ],
@@ -1427,11 +1936,14 @@ class _AddToCartButton extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 10),
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: const Color(0xFFFEF2F2),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.grey.shade300),
+              border: Border.all(color: const Color(0xFFFCA5A5)),
             ),
-            child: const Text('SOLD OUT', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 10)),
+            child: const Text(
+              'OUT OF STOCK',
+              style: TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.w900, fontSize: 10),
+            ),
           );
         }
         return SizedBox(

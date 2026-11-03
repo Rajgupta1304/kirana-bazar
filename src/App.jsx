@@ -17,6 +17,7 @@ import DriverManagement from './components/admin/DriverManagement';
 import RiderDashboard from './components/rider/RiderDashboard';
 import UserManager from './components/admin/UserManager';
 import PriceRequestManager from './components/admin/PriceRequestManager';
+import BannerManager from './components/admin/BannerManager';
 
 import { Smartphone, Monitor, ArrowRight } from 'lucide-react';
 
@@ -450,12 +451,17 @@ export default function App() {
                     onNavigate={(tab) => {
                       const role = currentUser.role;
                       if (role === 'Admin' || role === 'Super Admin') {
-                        if (['dashboard', 'customers', 'store-managers', 'stores', 'items', 'categories', 'drivers', 'orders', 'price-requests'].includes(tab)) setAdminTab(tab);
+                        if (['dashboard', 'customers', 'store-managers', 'stores', 'items', 'categories', 'drivers', 'orders', 'price-requests', 'banners'].includes(tab)) setAdminTab(tab);
                       } else if (role === 'Shopkeeper' || role === 'Store Manager') {
                         if (['dashboard', 'items', 'categories', 'orders', 'drivers', 'price-requests'].includes(tab)) setAdminTab(tab);
                       }
                     }}
                   />
+                )}
+
+                {/* Admin Exclusive View: Banners & Ads */}
+                {adminTab === 'banners' && (currentUser.role === 'Admin' || currentUser.role === 'Super Admin') && (
+                  <BannerManager categories={categories} />
                 )}
 
                 {/* Admin Exclusive View: Store Management */}

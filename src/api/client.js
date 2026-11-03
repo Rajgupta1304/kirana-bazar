@@ -339,5 +339,109 @@ export const apiClient = {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to review price request');
     return data;
+  },
+
+  // Banner / Advertisement APIs
+  async getBanners() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/banners`);
+      if (!res.ok) throw new Error('Failed to fetch banners');
+      return await res.json();
+    } catch (e) {
+      console.warn('API error fetching banners:', e);
+      return [];
+    }
+  },
+
+  async getAllBanners() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/banners/all`, { headers: getHeaders() });
+      if (!res.ok) throw new Error('Failed to fetch all banners');
+      return await res.json();
+    } catch (e) {
+      console.warn('API error fetching all banners:', e);
+      return [];
+    }
+  },
+
+  async addBanner(bannerData) {
+    const res = await fetch(`${API_BASE_URL}/banners`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(bannerData)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to create banner');
+    return data;
+  },
+
+  async updateBanner(id, bannerData) {
+    const res = await fetch(`${API_BASE_URL}/banners/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(bannerData)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to update banner');
+    return data;
+  },
+
+  async deleteBanner(id) {
+    const res = await fetch(`${API_BASE_URL}/banners/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    return await res.json();
+  },
+
+  // Order Details & Delivery OTP APIs
+  async getOrder(id) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/orders/${id}`, { headers: getHeaders() });
+      if (!res.ok) throw new Error('Failed to fetch order');
+      return await res.json();
+    } catch (e) {
+      console.warn('Failed to fetch order:', e);
+      return null;
+    }
+  },
+
+  async generateDeliveryOtp(orderId) {
+    const res = await fetch(`${API_BASE_URL}/orders/${orderId}/generate-delivery-otp`, {
+      method: 'POST',
+      headers: getHeaders()
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to generate delivery OTP');
+    return data;
+  },
+
+  async verifyDeliveryOtp(orderId, otp) {
+    const res = await fetch(`${API_BASE_URL}/orders/${orderId}/verify-delivery-otp`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ otp })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to verify delivery OTP');
+    return data;
+  },
+
+  async updateRiderLocation(orderId, lat, lng, etaMinutes) {
+    const res = await fetch(`${API_BASE_URL}/orders/${orderId}/rider-location`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify({ lat, lng, etaMinutes })
+    });
+    return await res.json();
+  },
+
+  async searchByImage(image, storeId = 'store_1', visualHint = '') {
+    const res = await fetch(`${API_BASE_URL}/products/image-search`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ image, storeId, visualHint })
+    });
+    return await res.json();
   }
 };

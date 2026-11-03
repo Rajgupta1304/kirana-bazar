@@ -4,6 +4,7 @@ import '../cart_provider.dart';
 import '../api_service.dart';
 import '../models.dart';
 import '../theme.dart';
+import 'order_tracking_screen.dart';
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -448,25 +449,34 @@ class _OrdersScreenState extends State<OrdersScreen> {
         statusLabel = 'Order Placed';
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isActive ? AppTheme.accent.withOpacity(0.3) : Colors.grey.shade200,
-          width: isActive ? 1.5 : 1.0,
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OrderTrackingScreen(order: order),
+          ),
+        ).then((_) => loadOrders(silent: true));
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isActive ? AppTheme.accent.withOpacity(0.3) : Colors.grey.shade200,
+            width: isActive ? 1.5 : 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
+            )
+          ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          )
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Order Header
           Container(
@@ -696,13 +706,45 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       ),
                     ),
                   ],
+                  Container(
+                    margin: const EdgeInsets.only(top: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0C831F).withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF0C831F).withOpacity(0.2)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.navigation, size: 14, color: Color(0xFF0C831F)),
+                            const SizedBox(width: 8),
+                            Text(
+                              order.status == 'OUT_FOR_DELIVERY'
+                                  ? 'Live Delivery Tracking & OTP • Tap to View'
+                                  : 'Order & Live Delivery Details',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0C831F),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Icon(Icons.arrow_forward_ios, size: 12, color: Color(0xFF0C831F)),
+                      ],
+                    ),
+                  ),
                 ],
               ],
             ),
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 
   double _getProgress(String status) {

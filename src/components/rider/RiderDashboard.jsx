@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiClient } from '../../api/client';
 import { 
   Bike, 
   MapPin, 
@@ -16,7 +17,8 @@ import {
   X,
   ChevronRight,
   ShieldCheck,
-  Zap
+  Zap,
+  KeyRound
 } from 'lucide-react';
 
 export default function RiderDashboard({ orders, onUpdateOrderStatus, currentUser, onLogout }) {
@@ -26,6 +28,13 @@ export default function RiderDashboard({ orders, onUpdateOrderStatus, currentUse
   const [activeNavOrder, setActiveNavOrder] = useState(null);
   const [copiedAddressId, setCopiedAddressId] = useState(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+
+  // Delivery OTP Verification State
+  const [otpModalOrder, setOtpModalOrder] = useState(null);
+  const [otpInput, setOtpInput] = useState('');
+  const [otpError, setOtpError] = useState(null);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpSuccess, setOtpSuccess] = useState(false);
 
   // Request high-accuracy GPS on mount
   useEffect(() => {
@@ -149,11 +158,76 @@ export default function RiderDashboard({ orders, onUpdateOrderStatus, currentUse
     setTimeout(() => setCopiedAddressId(null), 2500);
   };
 
-  const handleStatusUpdate = async (orderId, targetStatus) => {
+  // Live GPS sync to backend for customer tracking
+  useEffect(() => {
+    if (!riderCoords) return;
+    const outOrders = activeOrders.filter(o => o.status === 'OUT_FOR_DELIVERY');
+    if (outOrders.length === 0) return;
+
+    const syncLocation = () => {
+      outOrders.forEach(o => {
+        apiClient.updateRiderLocation(o.id, riderCoords.lat, riderCoords.lng, 10).catch(() => {});
+      });
+    };
+
+    syncLocation();
+    const interval = setInterval(syncLocation, 10000);
+    return () => clearInterval(interval);
+  }, [riderCoords, activeOrders]);
+
+  const handleInitiateDelivery = async (order) => {
+    setOtpModalOrder(order);
+    setOtpInput('');
+    setOtpError(null);
+    setOtpSuccess(false);
+    try {
+      setOtpLoading(true);
+      await apiClient.generateDeliveryOtp(order.id);
+    } catch (e) {
+      console.warn('Could not auto-generate delivery OTP:', e);
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otpInput || otpInput.trim().length !== 4) {
+      setOtpError('Please enter the 4-digit OTP provided by customer');
+      return;
+    }
+    setOtpLoading(true);
+    setOtpError(null);
+    try {
+      const res = await apiClient.verifyDeliveryOtp(otpModalOrder.id, otpInput.trim());
+      if (res && res.order) {
+        setOtpSuccess(true);
+        setTimeout(async () => {
+          const completedOrderId = otpModalOrder.id;
+          setOtpModalOrder(null);
+          if (activeNavOrder?.id === completedOrderId) {
+            setActiveNavOrder(null);
+          }
+          await onUpdateOrderStatus(completedOrderId, 'DELIVERED');
+        }, 1200);
+      } else {
+        setOtpError('Invalid OTP code. Please ask customer to check their app.');
+      }
+    } catch (err) {
+      setOtpError(err.message || 'Verification failed. Incorrect OTP.');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleStatusUpdate = async (order, targetStatus) => {
+    if (targetStatus === 'DELIVERED') {
+      handleInitiateDelivery(order);
+      return;
+    }
     setIsUpdatingStatus(true);
     try {
-      await onUpdateOrderStatus(orderId, targetStatus);
-      if (targetStatus === 'DELIVERED' && activeNavOrder?.id === orderId) {
+      await onUpdateOrderStatus(order.id, targetStatus);
+      if (targetStatus === 'DELIVERED' && activeNavOrder?.id === order.id) {
         setActiveNavOrder(null);
       }
     } finally {
@@ -364,7 +438,7 @@ export default function RiderDashboard({ orders, onUpdateOrderStatus, currentUse
                     {/* Progress Workflow Action */}
                     {action && (
                       <button
-                        onClick={() => handleStatusUpdate(order.id, action.target)}
+                        onClick={() => handleStatusUpdate(order, action.target)}
                         disabled={isUpdatingStatus}
                         className={`flex-1 py-3.5 px-4 font-black text-sm rounded-2xl transition-all duration-200 shadow-sm active:scale-[0.99] flex items-center justify-center gap-2 ${action.color}`}
                       >
@@ -577,7 +651,7 @@ export default function RiderDashboard({ orders, onUpdateOrderStatus, currentUse
                 </button>
 
                 <button
-                  onClick={() => handleStatusUpdate(activeNavOrder.id, 'DELIVERED')}
+                  onClick={() => handleStatusUpdate(activeNavOrder, 'DELIVERED')}
                   disabled={isUpdatingStatus}
                   className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-[0.99]"
                 >
@@ -590,6 +664,115 @@ export default function RiderDashboard({ orders, onUpdateOrderStatus, currentUse
           </div>
         );
       })()}
+
+      {/* ========================================================================= */}
+      {/* Delivery OTP Verification Modal (Mandatory to complete delivery) */}
+      {/* ========================================================================= */}
+      {otpModalOrder && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-6 text-white space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shadow-md shadow-amber-400/20">
+                  <ShieldCheck className="w-6 h-6 text-slate-950" />
+                </div>
+                <div>
+                  <h3 className="font-black text-lg">Delivery OTP Verification</h3>
+                  <p className="text-xs text-slate-400 font-mono">Order #{otpModalOrder.id}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setOtpModalOrder(null)}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="p-3.5 bg-slate-800/80 rounded-2xl border border-slate-700/80 text-xs text-slate-300">
+                <p className="font-bold text-amber-300 mb-1">Customer Verification Code Required</p>
+                Ask customer <span className="font-bold text-white">{otpModalOrder.customerDetails?.name || otpModalOrder.customerName || 'Customer'}</span> for the 4-digit delivery PIN visible on their app tracking screen or SMS.
+              </div>
+
+              {otpError && (
+                <div className="p-3 bg-rose-500/20 border border-rose-500/40 rounded-xl text-rose-300 text-xs font-semibold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{otpError}</span>
+                </div>
+              )}
+
+              {otpSuccess && (
+                <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-semibold flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>OTP Verified! Completing delivery...</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-black uppercase tracking-wider text-slate-400 mb-2">
+                  Enter 4-Digit Delivery OTP
+                </label>
+                <input
+                  type="text"
+                  maxLength={4}
+                  value={otpInput}
+                  onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ''))}
+                  placeholder="• • • •"
+                  className="w-full text-center text-3xl font-mono tracking-[0.5em] font-black py-3 px-4 bg-slate-950 border-2 border-slate-700 focus:border-amber-400 focus:outline-none rounded-2xl text-white transition"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
+                <span>Customer didn't get OTP?</span>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      setOtpLoading(true);
+                      await apiClient.generateDeliveryOtp(otpModalOrder.id);
+                      alert('A fresh 4-digit code has been generated for the customer!');
+                    } catch (e) {
+                      setOtpError('Failed to generate code');
+                    } finally {
+                      setOtpLoading(false);
+                    }
+                  }}
+                  className="text-amber-400 hover:text-amber-300 font-bold underline"
+                >
+                  Resend OTP to Customer
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setOtpModalOrder(null)}
+                className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm rounded-xl transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleVerifyOtp}
+                disabled={otpLoading || otpSuccess || otpInput.length !== 4}
+                className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black text-sm rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
+              >
+                {otpLoading ? (
+                  <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    Verify & Deliver
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

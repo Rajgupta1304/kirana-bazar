@@ -737,15 +737,7 @@ class ApiService {
             }
           }
           if (list.isNotEmpty) {
-            // Merge with defaultProducts so all categories have products
-            final Set<String> existingIds = list.map((p) => p.id).toSet();
-            final List<Product> merged = [...list];
-            for (final def in defaultProducts) {
-              if (!existingIds.contains(def.id)) {
-                merged.add(def);
-              }
-            }
-            return merged;
+            return list;
           }
         }
       }
@@ -916,5 +908,99 @@ class ApiService {
       print('Update order error: $e');
       return false;
     }
+  }
+
+  static Future<List<BannerItem>> getBanners() async {
+    try {
+      final response = await _getWithFallback('/banners');
+      if (response != null && response.statusCode == 200) {
+        final dynamic data = json.decode(response.body);
+        if (data is List) {
+          return data
+              .map((item) => BannerItem.fromJson(item is Map<String, dynamic> ? item : Map<String, dynamic>.from(item)))
+              .where((b) => b.active)
+              .toList();
+        }
+      }
+    } catch (e) {
+      print('Banners error: $e');
+    }
+    return [
+      BannerItem(
+        id: 'banner_fallback_1',
+        title: 'Flat 50% Off On Fresh Vegetables',
+        subtitle: 'Farm fresh arrivals delivered in 8 mins',
+        image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1200&q=80',
+        targetType: 'category',
+        targetValue: 'cat_2',
+        displayOrder: 1,
+      ),
+      BannerItem(
+        id: 'banner_fallback_2',
+        title: 'Dairy & Morning Essentials',
+        subtitle: 'Fresh milk, bread & eggs straight to your door',
+        image: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=1200&q=80',
+        targetType: 'category',
+        targetValue: 'cat_1',
+        displayOrder: 2,
+      ),
+    ];
+  }
+
+  static Future<Order?> getOrderDetails(String orderId) async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/orders/$orderId'), headers: _headers);
+      if (response.statusCode == 200) {
+        return Order.fromJson(json.decode(response.body));
+      }
+    } catch (e) {
+      print('Get order details error: $e');
+    }
+    return null;
+  }
+
+  static Future<List<StoreBranch>> getStores() async {
+    try {
+      final response = await _getWithFallback('/stores');
+      if (response != null && response.statusCode == 200) {
+        final dynamic data = json.decode(response.body);
+        if (data is List) {
+          return data
+              .map((item) => StoreBranch.fromJson(item is Map<String, dynamic> ? item : Map<String, dynamic>.from(item)))
+              .toList();
+        }
+      }
+    } catch (e) {
+      print('Get stores error: $e');
+    }
+    return [
+      StoreBranch(id: 'store_1', name: 'Sector 14 Hub', address: 'Main Market, Sector 14', city: 'Gurugram'),
+      StoreBranch(id: 'store_2', name: 'Cyber City Hub', address: 'DLF Phase 2', city: 'Gurugram'),
+    ];
+  }
+
+  static Future<List<Product>> searchByImage({String? imageBase64, String? visualHint, String? storeId}) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/products/image-search'),
+        headers: _headers,
+        body: json.encode({
+          'image': imageBase64 ?? '',
+          'visualHint': visualHint ?? '',
+          'storeId': storeId ?? 'store_1',
+        }),
+      );
+      if (response.statusCode == 200) {
+        final dynamic data = json.decode(response.body);
+        if (data is Map && data['products'] is List) {
+          return (data['products'] as List)
+              .map((p) => Product.fromJson(p is Map<String, dynamic> ? p : Map<String, dynamic>.from(p)))
+              .toList();
+        }
+      }
+    } catch (e) {
+      print('Image search error: $e');
+    }
+    return [];
   }
 }

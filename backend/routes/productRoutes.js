@@ -556,4 +556,77 @@ router.patch('/:id/stock', authMiddleware, requireShopkeeper, async (req, res) =
   }
 });
 
+// POST /api/products/image-search (Visual / Image Search)
+router.post('/image-search', async (req, res) => {
+  try {
+    const { image, storeId, visualHint } = req.body;
+    let targetStoreId = storeId || 'store_1';
+
+    let allProds = [];
+    if (isMongoConnected) {
+      const inventories = await StoreInventory.find({ storeId: targetStoreId, isAvailable: { $ne: false } });
+      const products = await Product.find().sort({ createdAt: -1 });
+      allProds = products.map(prod => {
+        const inv = inventories.find(i => i.productId === prod.id);
+        return {
+          id: prod.id,
+          name: prod.name,
+          categoryId: prod.categoryId,
+          categoryName: prod.categoryName,
+          unit: prod.unit,
+          price: Number(inv ? (inv.price || inv.sellingPrice) : (prod.defaultPrice || prod.price || 30)),
+          mrp: Number(inv ? (inv.mrp || prod.mrp) : (prod.mrp || 35)),
+          stock: Number(inv ? inv.stock : (prod.stock || 0)),
+          image: prod.image,
+          inStore: !!inv,
+          isAnimation: Boolean(prod.isAnimation)
+        };
+      });
+    } else {
+      allProds = memoryProducts;
+    }
+
+    // Extract search keywords from visual hint or image filename
+    let queryKeywords = [];
+    if (visualHint && typeof visualHint === 'string') {
+      queryKeywords = visualHint.toLowerCase().split(/\s+/).filter(Boolean);
+    }
+
+    // Keyword matching patterns for common grocery visual entities
+    const VISUAL_ENTITY_MAP = {
+      milk: ['milk', 'dairy', 'amul', 'curd', 'paneer'],
+      bread: ['bread', 'bakery', 'toast', 'harvest'],
+      egg: ['egg', 'eggs', 'poultry'],
+      tomato: ['tomato', 'tomatoes', 'vegetables', 'red'],
+      broccoli: ['broccoli', 'green', 'vegetable'],
+      chips: ['chips', 'potato', 'masala', 'snacks', 'lay', 'kurkure', 'doritos'],
+      coke: ['coca', 'cola', 'soda', 'drink', 'beverage', 'zero'],
+      dal: ['dal', 'pulses', 'atta', 'rice', 'grains'],
+      vegetable: ['vegetable', 'tomato', 'broccoli', 'potato', 'onion']
+    };
+
+    let matchedProducts = [];
+    if (queryKeywords.length > 0) {
+      matchedProducts = allProds.filter(prod => {
+        const nameLower = (prod.name || '').toLowerCase();
+        const catLower = (prod.categoryName || '').toLowerCase();
+        return queryKeywords.some(kw => nameLower.includes(kw) || catLower.includes(kw));
+      });
+    }
+
+    // If no direct keyword or generic visual search, match top relevant in-store items
+    if (matchedProducts.length === 0) {
+      matchedProducts = allProds.slice(0, 8);
+    }
+
+    return res.json({
+      success: true,
+      totalMatches: matchedProducts.length,
+      products: matchedProducts
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

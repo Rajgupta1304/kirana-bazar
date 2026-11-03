@@ -15,6 +15,9 @@ class CartProvider with ChangeNotifier {
   int _ordersVersion = 0;
   Order? _recentlyPlacedOrder;
 
+  String _selectedStoreId = 'store_1';
+  String _selectedStoreName = 'Sector 14 Hub';
+
   String _selectedCategory = 'ALL';
   final List<String> _savedAddresses = [
     'House no 10 sector 104, Metro Heights',
@@ -29,6 +32,17 @@ class CartProvider with ChangeNotifier {
   Order? get recentlyPlacedOrder => _recentlyPlacedOrder;
   String get selectedCategory => _selectedCategory;
   List<String> get savedAddresses => List.unmodifiable(_savedAddresses);
+  String get selectedStoreId => _selectedStoreId;
+  String get selectedStoreName => _selectedStoreName;
+
+  void setStore(String storeId, String storeName) {
+    if (_selectedStoreId != storeId) {
+      _selectedStoreId = storeId;
+      _selectedStoreName = storeName;
+      _items.clear();
+      notifyListeners();
+    }
+  }
 
   String get activeAddress {
     if (_currentUser != null && _currentUser!.address.trim().isNotEmpty) {
@@ -145,6 +159,9 @@ class CartProvider with ChangeNotifier {
   }
 
   void add(Product product) {
+    if (product.isOutOfStock) {
+      return;
+    }
     if (_items.isNotEmpty && _items.first.product.storeId != product.storeId) {
       // Must be handled by UI check before calling add
       return;

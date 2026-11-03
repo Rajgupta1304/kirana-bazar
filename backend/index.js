@@ -16,6 +16,7 @@ import driverRoutes from './routes/driverRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import storeRoutes from './routes/storeRoutes.js';
 import priceRequestRoutes from './routes/priceRequestRoutes.js';
+import bannerRoutes from './routes/bannerRoutes.js';
 
 dotenv.config();
 
@@ -61,6 +62,7 @@ app.use('/api/drivers', driverRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/stores', storeRoutes);
 app.use('/api/price-requests', priceRequestRoutes);
+app.use('/api/banners', bannerRoutes);
 
 // Customer Mobile App (Flutter Web PWA)
 const customerAppPath = path.join(__dirname, '../customer_app/build/web');

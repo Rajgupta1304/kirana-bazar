@@ -344,4 +344,154 @@ router.post('/:id/assign', authMiddleware, requireShopkeeper, async (req, res) =
   }
 });
 
+// GET /api/orders/:id (Full order details with live delivery tracking and OTP)
+router.get('/:id', optionalAuthMiddleware, async (req, res) => {
+  try {
+    if (!isMongoConnected) return res.status(500).json({ error: 'MongoDB required' });
+
+    const order = await Order.findOne({ id: req.params.id });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    // If active and deliveryOtp is missing, generate one
+    if (!order.deliveryOtp && !['DELIVERED', 'CANCELLED', 'REJECTED'].includes(order.orderStatus)) {
+      order.deliveryOtp = Math.floor(1000 + Math.random() * 9000).toString();
+      order.deliveryOtpExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
+      await order.save();
+    }
+
+    return res.json(order);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/orders/:id/generate-delivery-otp
+router.post('/:id/generate-delivery-otp', optionalAuthMiddleware, async (req, res) => {
+  try {
+    if (!isMongoConnected) return res.status(500).json({ error: 'MongoDB required' });
+
+    const order = await Order.findOne({ id: req.params.id });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    order.deliveryOtp = otp;
+    order.deliveryOtpExpiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+    await order.save();
+
+    await createNotification(
+      order.userId,
+      order.id,
+      'Delivery OTP Generated',
+      `Your delivery OTP for Order #${order.id} is ${otp}. Please share it with the rider upon arrival.`
+    );
+
+    return res.json({
+      success: true,
+      orderId: order.id,
+      deliveryOtp: otp,
+      expiresAt: order.deliveryOtpExpiresAt
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/orders/:id/verify-delivery-otp
+router.post('/:id/verify-delivery-otp', optionalAuthMiddleware, async (req, res) => {
+  try {
+    const { otp } = req.body;
+    if (!otp) {
+      return res.status(400).json({ error: 'Please enter the 4-digit Delivery OTP.' });
+    }
+
+    if (!isMongoConnected) return res.status(500).json({ error: 'MongoDB required' });
+
+    const order = await Order.findOne({ id: req.params.id });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    if (order.orderStatus === 'DELIVERED') {
+      return res.json({ success: true, message: 'Order is already delivered.', order });
+    }
+
+    // Verify OTP
+    if (!order.deliveryOtp || order.deliveryOtp.trim() !== String(otp).trim()) {
+      return res.status(400).json({
+        error: 'Invalid delivery OTP. Please ask the customer for the correct 4-digit OTP shown on their screen.'
+      });
+    }
+
+    // Verify expiration
+    if (order.deliveryOtpExpiresAt && new Date() > order.deliveryOtpExpiresAt) {
+      return res.status(400).json({
+        error: 'Delivery OTP has expired. Please tap "Resend OTP" to generate a fresh code.'
+      });
+    }
+
+    // Valid OTP: Transition to DELIVERED
+    order.orderStatus = 'DELIVERED';
+    order.status = 'DELIVERED';
+    order.deliveredAt = new Date();
+    order.etaMinutes = 0;
+    await order.save();
+
+    // Update DeliveryTask
+    try {
+      const dTask = await DeliveryTask.findOne({ orderId: order.id });
+      if (dTask) {
+        dTask.status = 'DELIVERED';
+        dTask.deliveredAt = new Date();
+        await dTask.save();
+      }
+    } catch (_) {}
+
+    await createNotification(
+      order.userId,
+      order.id,
+      'Order Delivered Successfully',
+      `Your order #${order.id} has been delivered. Enjoy your groceries!`
+    );
+
+    return res.json({
+      success: true,
+      message: 'Order successfully verified and marked as delivered.',
+      deliveredAt: order.deliveredAt,
+      order
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/orders/:id/rider-location
+router.patch('/:id/rider-location', optionalAuthMiddleware, async (req, res) => {
+  try {
+    const { lat, lng, etaMinutes } = req.body;
+    if (!isMongoConnected) return res.status(500).json({ error: 'MongoDB required' });
+
+    const order = await Order.findOne({ id: req.params.id });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    if (lat !== undefined && lng !== undefined) {
+      order.riderLocation = {
+        lat: Number(lat),
+        lng: Number(lng),
+        updatedAt: new Date()
+      };
+    }
+
+    if (etaMinutes !== undefined) {
+      order.etaMinutes = Math.max(0, Number(etaMinutes));
+    }
+
+    await order.save();
+    return res.json({
+      success: true,
+      riderLocation: order.riderLocation,
+      etaMinutes: order.etaMinutes
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

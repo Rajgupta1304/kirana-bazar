@@ -25,6 +25,8 @@ class Product {
     required this.inStore,
   });
 
+  bool get isOutOfStock => stock <= 0;
+
   factory Product.fromJson(Map<String, dynamic> json) {
     final parsedPrice = _toDouble(json['price'] ?? json['sellingPrice']);
     final parsedMrp = _toDouble(json['mrp'] ?? json['price']);
@@ -43,7 +45,7 @@ class Product {
       image: (json['image']?.toString().isNotEmpty == true)
           ? json['image'].toString()
           : 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80',
-      stock: parsedStock > 0 ? parsedStock : 25,
+      stock: json['stock'] == null ? 15 : parsedStock,
       storeId: json['storeId']?.toString() ?? json['shopkeeperId']?.toString() ?? 'store_1',
       inStore: json['inStore'] == null ? true : (json['inStore'] == true || json['inStore'].toString() == 'true'),
     );
@@ -94,6 +96,67 @@ class Category {
   }
 }
 
+class BannerItem {
+  final String id;
+  final String title;
+  final String subtitle;
+  final String image;
+  final String targetType;
+  final String targetValue;
+  final int displayOrder;
+  final bool active;
+
+  BannerItem({
+    required this.id,
+    required this.title,
+    this.subtitle = '',
+    required this.image,
+    this.targetType = 'category',
+    this.targetValue = '',
+    this.displayOrder = 0,
+    this.active = true,
+  });
+
+  factory BannerItem.fromJson(Map<String, dynamic> json) {
+    return BannerItem(
+      id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      subtitle: json['subtitle']?.toString() ?? '',
+      image: json['image']?.toString() ?? '',
+      targetType: json['targetType']?.toString() ?? 'category',
+      targetValue: json['targetValue']?.toString() ?? '',
+      displayOrder: _toInt(json['displayOrder']),
+      active: json['active'] == null ? true : (json['active'] == true || json['active'].toString() == 'true'),
+    );
+  }
+}
+
+class StoreBranch {
+  final String id;
+  final String name;
+  final String address;
+  final String city;
+  final String phone;
+
+  StoreBranch({
+    required this.id,
+    required this.name,
+    this.address = '',
+    this.city = 'Delhi NCR',
+    this.phone = '',
+  });
+
+  factory StoreBranch.fromJson(Map<String, dynamic> json) {
+    return StoreBranch(
+      id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
+      name: json['name']?.toString() ?? 'Kirana Mart',
+      address: json['address']?.toString() ?? '',
+      city: json['city']?.toString() ?? 'Delhi NCR',
+      phone: json['phone']?.toString() ?? '',
+    );
+  }
+}
+
 class Order {
   final String id;
   final double grandTotal;
@@ -103,6 +166,14 @@ class Order {
   final String address;
   final String createdAt;
   final String storeId;
+  final String storeName;
+  final String deliveryOtp;
+  final String deliveredAt;
+  final int etaMinutes;
+  final String driverName;
+  final String driverPhone;
+  final double riderLat;
+  final double riderLng;
 
   Order({
     required this.id,
@@ -113,19 +184,46 @@ class Order {
     this.address = '',
     this.createdAt = '',
     this.storeId = '',
+    this.storeName = 'Kirana Store Hub',
+    this.deliveryOtp = '',
+    this.deliveredAt = '',
+    this.etaMinutes = 10,
+    this.driverName = '',
+    this.driverPhone = '',
+    this.riderLat = 0.0,
+    this.riderLng = 0.0,
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
     final rawStatus = json['status']?.toString() ?? json['orderStatus']?.toString() ?? 'PENDING';
+    final custDetails = json['customerDetails'] is Map ? json['customerDetails'] as Map : null;
+    final riderLoc = json['riderLocation'] is Map ? json['riderLocation'] as Map : null;
+
+    final name = custDetails != null && custDetails['name'] != null
+        ? custDetails['name'].toString()
+        : (json['customerName']?.toString() ?? '');
+
+    final addr = custDetails != null && custDetails['address'] != null
+        ? custDetails['address'].toString()
+        : (json['address']?.toString() ?? '');
+
     return Order(
       id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
       grandTotal: _toDouble(json['grandTotal'] ?? json['totalAmount']),
       status: rawStatus,
       items: (json['items'] as List<dynamic>?) ?? [],
-      customerName: json['customerName']?.toString() ?? '',
-      address: json['address']?.toString() ?? '',
+      customerName: name,
+      address: addr,
       createdAt: json['createdAt']?.toString() ?? '',
       storeId: json['storeId']?.toString() ?? '',
+      storeName: json['storeName']?.toString() ?? 'Sector 14 Express Hub',
+      deliveryOtp: json['deliveryOtp']?.toString() ?? '',
+      deliveredAt: json['deliveredAt']?.toString() ?? '',
+      etaMinutes: _toInt(json['etaMinutes'] ?? 10),
+      driverName: json['driverName']?.toString() ?? json['deliveryPartnerName']?.toString() ?? 'Vikram Sharma',
+      driverPhone: json['driverPhone']?.toString() ?? json['deliveryPartnerPhone']?.toString() ?? '+91 98765 12345',
+      riderLat: _toDouble(riderLoc != null ? riderLoc['lat'] : json['riderLat']),
+      riderLng: _toDouble(riderLoc != null ? riderLoc['lng'] : json['riderLng']),
     );
   }
 }

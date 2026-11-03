@@ -27,6 +27,7 @@ const TAB_TITLES = {
   categories: { title: 'Categories & Brands', section: 'Catalog' },
   items: { title: 'Master Catalog', section: 'Catalog' },
   'price-requests': { title: 'Branch Price Requests', section: 'Catalog' },
+  banners: { title: 'Banners & Advertisements', section: 'Catalog' },
   orders: { title: 'Orders & Fulfillment', section: 'Logistics' },
   drivers: { title: 'Delivery Fleet', section: 'Logistics' },
   customers: { title: 'Customer Directory', section: 'People & Access' }

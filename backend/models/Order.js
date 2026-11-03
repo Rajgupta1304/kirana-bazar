@@ -41,6 +41,15 @@ const orderSchema = new mongoose.Schema({
   deliveryTaskId: { type: String, default: null },
   deliveryPartnerId: { type: String, default: null },
   estimatedDeliveryMins: { type: Number, default: 10 },
+  etaMinutes: { type: Number, default: 12 },
+  deliveryOtp: { type: String, default: null },
+  deliveryOtpExpiresAt: { type: Date, default: null },
+  deliveredAt: { type: Date, default: null },
+  riderLocation: {
+    lat: { type: Number, default: null },
+    lng: { type: Number, default: null },
+    updatedAt: { type: Date, default: null }
+  },
   createdAt: { type: Date, default: Date.now }
 });
 

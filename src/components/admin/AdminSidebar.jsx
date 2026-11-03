@@ -16,7 +16,8 @@ import {
   Sparkles,
   X,
   User,
-  DollarSign
+  DollarSign,
+  Image as ImageIcon
 } from 'lucide-react';
 
 export default function AdminSidebar({
@@ -102,6 +103,12 @@ export default function AdminSidebar({
           badge: pendingPriceRequestsCount > 0 ? `${pendingPriceRequestsCount} Pending` : null,
           badgeType: 'warning',
           roles: ['Admin', 'Super Admin', 'Shopkeeper', 'Store Manager']
+        },
+        {
+          id: 'banners',
+          label: 'Banners & Ads',
+          icon: ImageIcon,
+          roles: ['Admin', 'Super Admin']
         }
       ]
     },
