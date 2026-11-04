@@ -4,6 +4,7 @@ import '../api_service.dart';
 import '../models.dart';
 import '../theme.dart';
 import '../cart_provider.dart';
+import '../widgets/app_image.dart';
 
 class CategoriesScreen extends StatefulWidget {
   const CategoriesScreen({super.key});
@@ -672,10 +673,10 @@ class _CategoryGridCard extends StatelessWidget {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: category.image.isNotEmpty
-                    ? Image.network(
-                        category.image,
+                    ? AppImage(
+                        imageUrl: category.image,
                         fit: BoxFit.cover,
-                        errorBuilder: (c, e, s) => Center(
+                        errorWidget: Center(
                           child: Text(category.icon, style: const TextStyle(fontSize: 32)),
                         ),
                       )

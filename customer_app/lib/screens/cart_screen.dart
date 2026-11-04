@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../cart_provider.dart';
 import '../theme.dart';
 import '../api_service.dart';
+import '../widgets/app_image.dart';
 
 class CartScreen extends StatelessWidget {
   const CartScreen({super.key});
@@ -84,7 +85,18 @@ class CartScreen extends StatelessWidget {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(12),
-                        child: Image.network(item.product.image, width: 60, height: 60, fit: BoxFit.cover, errorBuilder: (c,e,s) => Container(width: 60, height: 60, color: Colors.grey.shade200, child: const Icon(Icons.image))),
+                        child: AppImage(
+                          imageUrl: item.product.image,
+                          width: 60,
+                          height: 60,
+                          fit: BoxFit.cover,
+                          errorWidget: Container(
+                            width: 60,
+                            height: 60,
+                            color: Colors.grey.shade200,
+                            child: const Icon(Icons.image, color: Colors.grey),
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(

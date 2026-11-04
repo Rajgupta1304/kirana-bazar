@@ -16,6 +16,7 @@ import {
   Check,
   Package
 } from 'lucide-react';
+import { optimizeImageFile } from '../../utils/imageOptimizer';
 
 export default function ItemManager({
   viewType = 'items',
@@ -138,26 +139,28 @@ export default function ItemManager({
     setShowAddModal(true);
   };
 
-  // Handle local image file upload (FileReader into Base64 data URL)
-  const handleImageFileUpload = (e) => {
+  // Handle local image file upload (Optimized Base64 data URL + GIF preservation)
+  const handleImageFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 15 * 1024 * 1024) {
-      alert('File size exceeds 15MB. Please choose a smaller image.');
+    if (file.size > 20 * 1024 * 1024) {
+      alert('File size exceeds 20MB. Please choose a smaller image.');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64Url = event.target?.result;
-      setNewItem(prev => ({
-        ...prev,
-        image: base64Url,
-        isAnimation: file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif') ? true : prev.isAnimation
-      }));
-    };
-    reader.readAsDataURL(file);
+    try {
+      const { dataUrl, isAnimation } = await optimizeImageFile(file, 1000, 1000, 0.85);
+      if (dataUrl) {
+        setNewItem(prev => ({
+          ...prev,
+          image: dataUrl,
+          isAnimation: isAnimation || prev.isAnimation
+        }));
+      }
+    } catch (err) {
+      console.warn('Image processing error:', err);
+    }
   };
 
   const handleToggleBranchVisibility = (storeId) => {

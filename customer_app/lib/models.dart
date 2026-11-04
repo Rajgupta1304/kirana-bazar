@@ -10,6 +10,7 @@ class Product {
   final int stock;
   final String storeId;
   final bool inStore;
+  final bool isAnimation;
 
   Product({
     required this.id,
@@ -23,6 +24,7 @@ class Product {
     required this.stock,
     required this.storeId,
     required this.inStore,
+    this.isAnimation = false,
   });
 
   bool get isOutOfStock => stock <= 0;
@@ -34,6 +36,16 @@ class Product {
     final finalMrp = parsedMrp > 0 ? parsedMrp : finalPrice;
     final parsedStock = _toInt(json['stock']);
 
+    String resolvedImage = '';
+    if (json['image'] != null && json['image'].toString().trim().isNotEmpty && json['image'].toString() != 'null') {
+      resolvedImage = json['image'].toString().trim();
+    } else if (json['images'] is List && (json['images'] as List).isNotEmpty) {
+      resolvedImage = (json['images'] as List).first.toString().trim();
+    }
+    if (resolvedImage.isEmpty) {
+      resolvedImage = 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80';
+    }
+
     return Product(
       id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
       name: json['name']?.toString() ?? 'Grocery Item',
@@ -42,12 +54,11 @@ class Product {
       unit: json['unit']?.toString() ?? '1 unit',
       price: finalPrice,
       mrp: finalMrp,
-      image: (json['image']?.toString().isNotEmpty == true)
-          ? json['image'].toString()
-          : 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80',
+      image: resolvedImage,
       stock: json['stock'] == null ? 15 : parsedStock,
       storeId: json['storeId']?.toString() ?? json['shopkeeperId']?.toString() ?? 'store_1',
       inStore: json['inStore'] == null ? true : (json['inStore'] == true || json['inStore'].toString() == 'true'),
+      isAnimation: json['isAnimation'] == true || json['isAnimation']?.toString() == 'true',
     );
   }
 }
@@ -118,12 +129,16 @@ class BannerItem {
   });
 
   factory BannerItem.fromJson(Map<String, dynamic> json) {
+    String rawImage = '';
+    if (json['image'] != null && json['image'].toString().trim().isNotEmpty && json['image'].toString() != 'null') {
+      rawImage = json['image'].toString().trim();
+    }
     return BannerItem(
       id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
       title: json['title']?.toString() ?? '',
       subtitle: json['subtitle']?.toString() ?? '',
-      image: json['image']?.toString() ?? '',
-      targetType: json['targetType']?.toString() ?? 'category',
+      image: rawImage,
+      targetType: (json['targetType']?.toString() ?? 'category').toLowerCase(),
       targetValue: json['targetValue']?.toString() ?? '',
       displayOrder: _toInt(json['displayOrder']),
       active: json['active'] == null ? true : (json['active'] == true || json['active'].toString() == 'true'),
@@ -267,6 +282,17 @@ class User {
       address: parsedAddress.isNotEmpty ? parsedAddress : 'B-12, Sector 14, Metro Heights',
       role: json['role']?.toString() ?? 'Customer',
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'phone': phone,
+      'email': email,
+      'address': address,
+      'role': role,
+    };
   }
 }
 

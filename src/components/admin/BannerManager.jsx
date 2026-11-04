@@ -17,6 +17,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { apiClient } from '../../api/client';
+import { optimizeImageFile } from '../../utils/imageOptimizer';
 
 export default function BannerManager({ categories = [] }) {
   const [banners, setBanners] = useState([]);
@@ -94,23 +95,26 @@ export default function BannerManager({ categories = [] }) {
     setShowModal(true);
   };
 
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 15 * 1024 * 1024) {
-      alert('File size exceeds 15MB. Please choose a smaller image.');
+    if (file.size > 20 * 1024 * 1024) {
+      alert('File size exceeds 20MB. Please choose a smaller image.');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setFormBanner(prev => ({
-        ...prev,
-        image: event.target?.result
-      }));
-    };
-    reader.readAsDataURL(file);
+    try {
+      const { dataUrl } = await optimizeImageFile(file, 1400, 700, 0.85);
+      if (dataUrl) {
+        setFormBanner(prev => ({
+          ...prev,
+          image: dataUrl
+        }));
+      }
+    } catch (err) {
+      console.warn('Banner image processing error:', err);
+    }
   };
 
   const handleSubmit = async (e) => {

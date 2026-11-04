@@ -1,5 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
+import 'api_service.dart';
 
 class CartItem {
   final Product product;
@@ -9,6 +12,11 @@ class CartItem {
 }
 
 class CartProvider with ChangeNotifier {
+  static const String _keyUser = 'kirana_customer_user';
+  static const String _keyToken = 'kirana_customer_token';
+  static const String _keyStoreId = 'kirana_selected_store_id';
+  static const String _keyStoreName = 'kirana_selected_store_name';
+  static const String _keyAddresses = 'kirana_saved_addresses';
   final List<CartItem> _items = [];
   User? _currentUser;
   int _selectedTabIndex = 0;
@@ -35,12 +43,50 @@ class CartProvider with ChangeNotifier {
   String get selectedStoreId => _selectedStoreId;
   String get selectedStoreName => _selectedStoreName;
 
+  Future<void> initSession() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userJson = prefs.getString(_keyUser);
+      final savedToken = prefs.getString(_keyToken);
+      final savedStoreId = prefs.getString(_keyStoreId);
+      final savedStoreName = prefs.getString(_keyStoreName);
+      final addresses = prefs.getStringList(_keyAddresses);
+
+      if (savedStoreId != null && savedStoreId.isNotEmpty) {
+        _selectedStoreId = savedStoreId;
+      }
+      if (savedStoreName != null && savedStoreName.isNotEmpty) {
+        _selectedStoreName = savedStoreName;
+      }
+      if (addresses != null && addresses.isNotEmpty) {
+        _savedAddresses.clear();
+        _savedAddresses.addAll(addresses);
+      }
+
+      if (userJson != null && userJson.isNotEmpty) {
+        final Map<String, dynamic> decoded = jsonDecode(userJson);
+        _currentUser = User.fromJson(decoded);
+        if (savedToken != null && savedToken.isNotEmpty) {
+          ApiService.setToken(savedToken);
+        }
+        debugPrint('Persistent customer session restored: ${_currentUser?.name}');
+      }
+    } catch (e) {
+      debugPrint('Error restoring customer session: $e');
+    }
+  }
+
   void setStore(String storeId, String storeName) {
     if (_selectedStoreId != storeId) {
       _selectedStoreId = storeId;
       _selectedStoreName = storeName;
       _items.clear();
       notifyListeners();
+
+      SharedPreferences.getInstance().then((prefs) {
+        prefs.setString(_keyStoreId, storeId);
+        prefs.setString(_keyStoreName, storeName);
+      }).catchError((_) {});
     }
   }
 
@@ -65,6 +111,7 @@ class CartProvider with ChangeNotifier {
         address: address.trim(),
         role: _currentUser!.role,
       );
+      updateUser(_currentUser!);
     } else {
       _currentUser = User(
         id: 'usr_1',
@@ -74,8 +121,13 @@ class CartProvider with ChangeNotifier {
         address: address.trim(),
         role: 'Customer',
       );
+      updateUser(_currentUser!);
     }
     notifyListeners();
+
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setStringList(_keyAddresses, _savedAddresses);
+    }).catchError((_) {});
   }
 
   int get totalItems => _items.fold(0, (sum, item) => sum + item.quantity);
@@ -121,17 +173,29 @@ class CartProvider with ChangeNotifier {
   void goToOrders() => setTab(3);
   void goToProfile() => setTab(4);
 
-  void setUser(User user) {
+  void setUser(User user, {String? token}) {
     _currentUser = user;
     _selectedTabIndex = 0;
     if (user.address.isNotEmpty && !_savedAddresses.contains(user.address)) {
       _savedAddresses.insert(0, user.address);
     }
     notifyListeners();
+
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString(_keyUser, jsonEncode(user.toJson()));
+      final activeToken = token ?? ApiService.token;
+      if (activeToken != null && activeToken.isNotEmpty) {
+        ApiService.setToken(activeToken);
+        prefs.setString(_keyToken, activeToken);
+      }
+      prefs.setStringList(_keyAddresses, _savedAddresses);
+    }).catchError((e) {
+      debugPrint('Error persisting user session: $e');
+    });
   }
 
   void continueAsGuest() {
-    _currentUser = User(
+    final guest = User(
       id: 'usr_guest',
       name: 'Guest Shopper',
       email: 'guest@kiranabazar.com',
@@ -139,8 +203,7 @@ class CartProvider with ChangeNotifier {
       address: _savedAddresses.isNotEmpty ? _savedAddresses.first : 'House no 10 sector 104, Metro Heights',
       role: 'Customer',
     );
-    _selectedTabIndex = 0;
-    notifyListeners();
+    setUser(guest);
   }
 
   void updateUser(User user) {
@@ -149,13 +212,28 @@ class CartProvider with ChangeNotifier {
       _savedAddresses.insert(0, user.address);
     }
     notifyListeners();
+
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString(_keyUser, jsonEncode(user.toJson()));
+      prefs.setStringList(_keyAddresses, _savedAddresses);
+    }).catchError((e) {
+      debugPrint('Error updating user session: $e');
+    });
   }
 
   void logout() {
     _currentUser = null;
     _selectedTabIndex = 0;
     _items.clear();
+    ApiService.setToken(null);
     notifyListeners();
+
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.remove(_keyUser);
+      prefs.remove(_keyToken);
+    }).catchError((e) {
+      debugPrint('Error clearing persistent session: $e');
+    });
   }
 
   void add(Product product) {

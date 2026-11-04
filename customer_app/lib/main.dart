@@ -5,11 +5,15 @@ import 'theme.dart';
 import 'screens/main_screen.dart';
 import 'screens/auth_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final cartProvider = CartProvider();
+  await cartProvider.initSession();
+
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => CartProvider()),
+        ChangeNotifierProvider.value(value: cartProvider),
       ],
       child: const KiranaCustomerApp(),
     ),

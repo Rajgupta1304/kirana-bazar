@@ -1,7 +1,7 @@
 import express from 'express';
 import User from '../models/User.js';
 import { isMongoConnected } from '../db/connect.js';
-import { generateToken } from '../middleware/authMiddleware.js';
+import { generateToken, authMiddleware } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
@@ -76,6 +76,26 @@ router.get('/stores', async (req, res) => {
       return res.json(stores);
     }
     return res.json([]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/auth/me (Restore & verify current user profile)
+router.get('/me', authMiddleware, async (req, res) => {
+  try {
+    if (isMongoConnected) {
+      const user = await User.findOne({
+        $or: [{ id: req.user.id }, { _id: req.user.id }]
+      });
+      if (!user) {
+        return res.status(404).json({ error: 'User account not found' });
+      }
+      const userObj = user.toObject ? user.toObject() : { ...user };
+      delete userObj.password;
+      return res.json({ user: userObj });
+    }
+    return res.status(503).json({ error: 'Database service is connecting' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

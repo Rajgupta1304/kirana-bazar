@@ -23,6 +23,8 @@ class ApiService {
     if (_token != null) 'Authorization': 'Bearer $_token',
   };
 
+  static String? get token => _token;
+
   static void setToken(String? token) {
     _token = token;
   }

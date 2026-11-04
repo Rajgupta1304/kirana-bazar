@@ -7,6 +7,7 @@ import '../api_service.dart';
 import '../models.dart';
 import '../theme.dart';
 import '../cart_provider.dart';
+import '../widgets/app_image.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -745,10 +746,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          Image.network(
-                            b.image,
+                          AppImage(
+                            imageUrl: b.image,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
+                            width: double.infinity,
+                            errorWidget: Container(
                               color: const Color(0xFF0284C7),
                               child: const Icon(Icons.campaign, color: Colors.white, size: 40),
                             ),
@@ -1717,10 +1719,10 @@ class _FrequentCard extends StatelessWidget {
                       padding: const EdgeInsets.all(3),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          img1,
+                        child: AppImage(
+                          imageUrl: img1,
                           fit: BoxFit.cover,
-                          errorBuilder: (c, e, s) => const Icon(Icons.store, size: 20, color: Colors.grey),
+                          errorWidget: const Icon(Icons.store, size: 20, color: Colors.grey),
                         ),
                       ),
                     ),
@@ -1735,10 +1737,10 @@ class _FrequentCard extends StatelessWidget {
                       padding: const EdgeInsets.all(3),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          img2,
+                        child: AppImage(
+                          imageUrl: img2,
                           fit: BoxFit.cover,
-                          errorBuilder: (c, e, s) => const Icon(Icons.store, size: 20, color: Colors.grey),
+                          errorWidget: const Icon(Icons.store, size: 20, color: Colors.grey),
                         ),
                       ),
                     ),
@@ -1795,17 +1797,18 @@ class _ProductCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Image with 8 MINS Badge
+          // Image with 8 MINS Badge & Animation Indicator
           Expanded(
             child: Stack(
               children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                  child: Image.network(
-                    product.image,
+                Positioned.fill(
+                  child: AppImage(
+                    imageUrl: product.image,
                     width: double.infinity,
+                    height: double.infinity,
                     fit: BoxFit.cover,
-                    errorBuilder: (c, e, s) => Container(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                    errorWidget: Container(
                       color: Colors.grey.shade100,
                       child: const Icon(Icons.image, size: 50, color: Colors.grey),
                     ),
@@ -1832,6 +1835,35 @@ class _ProductCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (product.isAnimation)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF7C3AED),
+                        borderRadius: BorderRadius.circular(6),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.18),
+                            blurRadius: 4,
+                          )
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.auto_awesome, size: 9, color: Colors.white),
+                          SizedBox(width: 3),
+                          Text(
+                            'GIF',
+                            style: TextStyle(color: Colors.white, fontSize: 8.5, fontWeight: FontWeight.w900),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
