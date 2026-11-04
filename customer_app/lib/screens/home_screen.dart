@@ -8,6 +8,7 @@ import '../models.dart';
 import '../theme.dart';
 import '../cart_provider.dart';
 import '../widgets/app_image.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -454,71 +455,13 @@ class _HomeScreenState extends State<HomeScreen> {
   void _openVoiceSearchModal(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => Container(
-          padding: const EdgeInsets.all(24),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
-              ),
-              const SizedBox(height: 20),
-              Container(
-                width: 76,
-                height: 76,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xFFEF4444), Color(0xFFDC2626)]),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(color: const Color(0xFFEF4444).withOpacity(0.35), blurRadius: 18, offset: const Offset(0, 6)),
-                  ],
-                ),
-                child: const Icon(Icons.mic, color: Colors.white, size: 38),
-              ),
-              const SizedBox(height: 16),
-              const Text('Voice Search', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
-              const SizedBox(height: 6),
-              const Text('Speak now or tap a voice prompt keyword:', style: TextStyle(fontSize: 13, color: Color(0xFF64748B))),
-              const SizedBox(height: 18),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                alignment: WrapAlignment.center,
-                children: [
-                  'Amul Milk',
-                  'Brown Bread',
-                  'Aashirvaad Atta',
-                  'Nescafe Coffee',
-                  'Fortune Sunflower Oil',
-                  'Lays Chips',
-                  'Maggi Noodles',
-                  'Basmati Rice',
-                ].map((term) {
-                  return ActionChip(
-                    backgroundColor: const Color(0xFFEFF6FF),
-                    side: const BorderSide(color: Color(0xFF93C5FD)),
-                    label: Text(term, style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1D4ED8), fontSize: 12)),
-                    avatar: const Icon(Icons.mic, size: 14, color: Color(0xFF2563EB)),
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      _searchController.text = term;
-                      setState(() => searchQuery = term);
-                    },
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 14),
-            ],
-          ),
-        ),
+      builder: (ctx) => _VoiceSearchBottomSheet(
+        onSearchSelected: (term) {
+          _searchController.text = term;
+          setState(() => searchQuery = term);
+        },
       ),
     );
   }
@@ -2017,6 +1960,401 @@ class _AddToCartButton extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _VoiceSearchBottomSheet extends StatefulWidget {
+  final ValueChanged<String> onSearchSelected;
+
+  const _VoiceSearchBottomSheet({required this.onSearchSelected});
+
+  @override
+  State<_VoiceSearchBottomSheet> createState() => _VoiceSearchBottomSheetState();
+}
+
+class _VoiceSearchBottomSheetState extends State<_VoiceSearchBottomSheet>
+    with SingleTickerProviderStateMixin {
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  bool _isAvailable = false;
+  bool _isListening = false;
+  String _recognizedWords = '';
+  String _statusMessage = 'Initializing microphone...';
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
+  final List<String> _suggestions = const [
+    'Milk',
+    'Bread',
+    'Eggs',
+    'Atta',
+    'Sugar',
+    'Oil',
+    'Maggi',
+    'Tea',
+    'Rice',
+    'Butter',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat(reverse: true);
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.22).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+
+    _initSpeech();
+  }
+
+  Future<void> _initSpeech() async {
+    try {
+      final available = await _speech.initialize(
+        onStatus: (status) {
+          if (!mounted) return;
+          if (status == 'listening') {
+            setState(() {
+              _isListening = true;
+              _statusMessage = 'Listening... Speak now';
+            });
+          } else if (status == 'notListening' || status == 'done') {
+            setState(() {
+              _isListening = false;
+              if (_recognizedWords.isEmpty) {
+                _statusMessage = 'Tap the microphone to speak';
+              } else {
+                _statusMessage = 'Tap to speak again';
+              }
+            });
+          }
+        },
+        onError: (errorNotification) {
+          if (!mounted) return;
+          setState(() {
+            _isListening = false;
+            _statusMessage = 'Could not catch that. Tap microphone to try again.';
+          });
+        },
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _isAvailable = available;
+        if (available) {
+          _statusMessage = 'Listening... Speak now';
+        } else {
+          _statusMessage = 'Microphone permission denied or voice recognition unavailable.';
+        }
+      });
+
+      if (available) {
+        _startListening();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isAvailable = false;
+        _isListening = false;
+        _statusMessage = 'Voice search not supported on this platform/browser.';
+      });
+    }
+  }
+
+  Future<void> _startListening() async {
+    if (!_isAvailable) {
+      await _initSpeech();
+      if (!_isAvailable) return;
+    }
+
+    setState(() {
+      _recognizedWords = '';
+      _isListening = true;
+      _statusMessage = 'Listening... Speak now';
+    });
+
+    try {
+      await _speech.listen(
+        onResult: (result) {
+          if (!mounted) return;
+          setState(() {
+            _recognizedWords = result.recognizedWords;
+          });
+          if (result.finalResult && _recognizedWords.trim().isNotEmpty) {
+            Future.delayed(const Duration(milliseconds: 500), () {
+              if (mounted && _recognizedWords.trim().isNotEmpty) {
+                widget.onSearchSelected(_recognizedWords.trim());
+                Navigator.of(context).pop();
+              }
+            });
+          }
+        },
+        listenOptions: stt.SpeechListenOptions(
+          listenMode: stt.ListenMode.search,
+          cancelOnError: true,
+          partialResults: true,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isListening = false;
+        _statusMessage = 'Error listening: $e';
+      });
+    }
+  }
+
+  Future<void> _stopListening() async {
+    try {
+      await _speech.stop();
+    } catch (_) {}
+    if (mounted) {
+      setState(() {
+        _isListening = false;
+      });
+    }
+  }
+
+  void _submitSearch(String query) {
+    if (query.trim().isEmpty) return;
+    _stopListening();
+    widget.onSearchSelected(query.trim());
+    Navigator.of(context).pop();
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    try {
+      if (_speech.isListening) {
+        _speech.stop();
+      }
+    } catch (_) {}
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + bottomInset),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Drag handle
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Header
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Voice Search',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Search for groceries by speaking in Hindi or English',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.grey),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Mic button with ripple pulse
+            GestureDetector(
+              onTap: () {
+                if (_isListening) {
+                  _stopListening();
+                } else {
+                  _startListening();
+                }
+              },
+              child: AnimatedBuilder(
+                animation: _pulseAnimation,
+                builder: (context, child) {
+                  return Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      if (_isListening)
+                        Transform.scale(
+                          scale: _pulseAnimation.value,
+                          child: Container(
+                            width: 100,
+                            height: 100,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: const Color(0xFFEF4444).withOpacity(0.2),
+                            ),
+                          ),
+                        ),
+                      Container(
+                        width: 76,
+                        height: 76,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFEF4444).withOpacity(_isListening ? 0.45 : 0.25),
+                              blurRadius: _isListening ? 18 : 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          _isListening ? Icons.mic : Icons.mic_none,
+                          color: Colors.white,
+                          size: 38,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Status / listening label
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Text(
+                _statusMessage,
+                key: ValueKey<String>(_statusMessage),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _isListening ? const Color(0xFFEF4444) : Colors.grey.shade700,
+                ),
+              ),
+            ),
+
+            // Live recognized words
+            if (_recognizedWords.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.record_voice_over, size: 20, color: Color(0xFF0C8CE9)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _recognizedWords,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.arrow_forward, color: Color(0xFF0C8CE9)),
+                      onPressed: () => _submitSearch(_recognizedWords),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: ElevatedButton.icon(
+                  onPressed: () => _submitSearch(_recognizedWords),
+                  icon: const Icon(Icons.search, size: 18),
+                  label: Text('Search for "$_recognizedWords"'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0C8CE9),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 20),
+
+            // Suggestions Chips
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Popular Searches',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _suggestions.map((suggestion) {
+                return ActionChip(
+                  label: Text(suggestion),
+                  labelStyle: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF334155),
+                  ),
+                  backgroundColor: const Color(0xFFF1F5F9),
+                  side: BorderSide(color: Colors.grey.shade300, width: 0.8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  onPressed: () => _submitSearch(suggestion),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
