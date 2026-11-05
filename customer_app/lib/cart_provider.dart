@@ -9,6 +9,16 @@ class CartItem {
   int quantity;
 
   CartItem({required this.product, this.quantity = 1});
+
+  Map<String, dynamic> toJson() => {
+    'product': product.toJson(),
+    'quantity': quantity,
+  };
+
+  factory CartItem.fromJson(Map<String, dynamic> json) => CartItem(
+    product: Product.fromJson(Map<String, dynamic>.from(json['product'] as Map)),
+    quantity: json['quantity'] as int? ?? 1,
+  );
 }
 
 class CartProvider with ChangeNotifier {
@@ -17,9 +27,12 @@ class CartProvider with ChangeNotifier {
   static const String _keyStoreId = 'kirana_selected_store_id';
   static const String _keyStoreName = 'kirana_selected_store_name';
   static const String _keyAddresses = 'kirana_saved_addresses';
+  static const String _keyCart = 'kirana_saved_cart_items';
+
   final List<CartItem> _items = [];
   User? _currentUser;
   int _selectedTabIndex = 0;
+  final List<int> _tabHistory = [0];
   int _ordersVersion = 0;
   Order? _recentlyPlacedOrder;
 
@@ -27,6 +40,7 @@ class CartProvider with ChangeNotifier {
   String _selectedStoreName = 'Sector 14 Hub';
 
   String _selectedCategory = 'ALL';
+  List<Category> _categories = [];
   final List<String> _savedAddresses = [
     'House no 10 sector 104, Metro Heights',
     'Tower B, Tech Park, Sector 62',
@@ -36,12 +50,35 @@ class CartProvider with ChangeNotifier {
   List<CartItem> get items => _items;
   User? get currentUser => _currentUser;
   int get selectedTabIndex => _selectedTabIndex;
+  List<int> get tabHistory => List.unmodifiable(_tabHistory);
   int get ordersVersion => _ordersVersion;
   Order? get recentlyPlacedOrder => _recentlyPlacedOrder;
   String get selectedCategory => _selectedCategory;
+  List<Category> get categories => List.unmodifiable(_categories);
   List<String> get savedAddresses => List.unmodifiable(_savedAddresses);
   String get selectedStoreId => _selectedStoreId;
   String get selectedStoreName => _selectedStoreName;
+
+  void setCategories(List<Category> cats) {
+    if (cats.isNotEmpty) {
+      _categories = cats;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _persistCart() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (_items.isEmpty) {
+        await prefs.remove(_keyCart);
+      } else {
+        final list = _items.map((i) => i.toJson()).toList();
+        await prefs.setString(_keyCart, jsonEncode(list));
+      }
+    } catch (e) {
+      debugPrint('Error persisting cart: $e');
+    }
+  }
 
   Future<void> initSession() async {
     try {
@@ -51,6 +88,7 @@ class CartProvider with ChangeNotifier {
       final savedStoreId = prefs.getString(_keyStoreId);
       final savedStoreName = prefs.getString(_keyStoreName);
       final addresses = prefs.getStringList(_keyAddresses);
+      final cartJson = prefs.getString(_keyCart);
 
       if (savedStoreId != null && savedStoreId.isNotEmpty) {
         _selectedStoreId = savedStoreId;
@@ -70,6 +108,22 @@ class CartProvider with ChangeNotifier {
           ApiService.setToken(savedToken);
         }
         debugPrint('Persistent customer session restored: ${_currentUser?.name}');
+      }
+
+      // Restore saved cart items across app restarts
+      if (cartJson != null && cartJson.isNotEmpty) {
+        try {
+          final List decoded = jsonDecode(cartJson);
+          _items.clear();
+          for (var item in decoded) {
+            if (item is Map) {
+              _items.add(CartItem.fromJson(Map<String, dynamic>.from(item)));
+            }
+          }
+          debugPrint('Restored ${_items.length} items to cart from local storage');
+        } catch (e) {
+          debugPrint('Error restoring cart items: $e');
+        }
       }
     } catch (e) {
       debugPrint('Error restoring customer session: $e');
@@ -159,8 +213,27 @@ class CartProvider with ChangeNotifier {
     if (_selectedTabIndex == index && index == 3) {
       _ordersVersion++;
     }
+    if (_selectedTabIndex != index) {
+      _tabHistory.add(index);
+    }
     _selectedTabIndex = index;
     notifyListeners();
+  }
+
+  bool popTab() {
+    if (_tabHistory.length > 1) {
+      _tabHistory.removeLast();
+      _selectedTabIndex = _tabHistory.last;
+      notifyListeners();
+      return true;
+    } else if (_selectedTabIndex != 0) {
+      _selectedTabIndex = 0;
+      _tabHistory.clear();
+      _tabHistory.add(0);
+      notifyListeners();
+      return true;
+    }
+    return false;
   }
 
   void goToHome({String? categoryId}) {
@@ -236,6 +309,20 @@ class CartProvider with ChangeNotifier {
     });
   }
 
+  void updateProfileImage(String base64Image) {
+    if (_currentUser == null) return;
+    _currentUser = User(
+      id: _currentUser!.id,
+      name: _currentUser!.name,
+      phone: _currentUser!.phone,
+      email: _currentUser!.email,
+      address: _currentUser!.address,
+      role: _currentUser!.role,
+      profileImage: base64Image,
+    );
+    updateUser(_currentUser!);
+  }
+
   void add(Product product) {
     if (product.isOutOfStock) {
       return;
@@ -252,6 +339,7 @@ class CartProvider with ChangeNotifier {
       _items.add(CartItem(product: product));
     }
     notifyListeners();
+    _persistCart();
   }
 
   void remove(Product product) {
@@ -263,11 +351,13 @@ class CartProvider with ChangeNotifier {
         _items.removeAt(existingIndex);
       }
       notifyListeners();
+      _persistCart();
     }
   }
 
   void clear() {
     _items.clear();
     notifyListeners();
+    _persistCart();
   }
 }

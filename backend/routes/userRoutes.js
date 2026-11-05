@@ -89,11 +89,12 @@ router.post('/', async (req, res) => {
 // PATCH /api/users/:id (Profile update)
 router.patch('/:id', async (req, res) => {
   try {
-    const { name, phone, address } = req.body;
+    const { name, phone, address, profileImage } = req.body;
     const updateData = {};
     if (name !== undefined) updateData.name = name;
     if (phone !== undefined) updateData.phone = phone;
     if (address !== undefined) updateData.address = address;
+    if (profileImage !== undefined) updateData.profileImage = profileImage;
 
     if (!isMongoConnected) {
       return res.status(503).json({ error: 'Database service is currently unavailable.' });

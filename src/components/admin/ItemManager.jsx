@@ -502,8 +502,8 @@ export default function ItemManager({
                               }}
                             />
                             {item.isAnimation && (
-                              <span className="absolute -top-1 -right-1 px-1 py-0.2 bg-purple-600 text-[8px] font-black text-white rounded shadow" title="Animated Image">
-                                GIF
+                              <span className="absolute -top-1 -right-1 px-1 py-0.2 bg-gradient-to-r from-purple-600 to-indigo-600 text-[8px] font-black text-white rounded shadow" title="3D / Animated View Enabled">
+                                3D
                               </span>
                             )}
                           </div>
@@ -512,7 +512,7 @@ export default function ItemManager({
                               <h4 className="font-extrabold text-gray-900 line-clamp-1">{item.name}</h4>
                               {item.isAnimation && (
                                 <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-purple-100 text-purple-700 border border-purple-200 inline-flex items-center gap-0.5">
-                                  <Sparkles className="w-2.5 h-2.5" /> Animation
+                                  <Sparkles className="w-2.5 h-2.5" /> 3D View
                                 </span>
                               )}
                             </div>
@@ -877,21 +877,21 @@ export default function ItemManager({
                   </div>
                 )}
 
-                {/* Animation Image Checkbox */}
-                <div className="flex items-start gap-2 p-2.5 bg-purple-50 rounded-xl border border-purple-200 cursor-pointer">
+                {/* 3D / Animation Image Checkbox */}
+                <div className="flex items-start gap-2.5 p-3 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-200 cursor-pointer">
                   <input
                     type="checkbox"
                     id="animationCheckbox"
                     checked={newItem.isAnimation}
                     onChange={(e) => setNewItem({ ...newItem, isAnimation: e.target.checked })}
-                    className="mt-0.5 text-purple-600 rounded"
+                    className="mt-0.5 text-purple-600 rounded w-4 h-4 cursor-pointer"
                   />
                   <label htmlFor="animationCheckbox" className="cursor-pointer">
-                    <span className="font-extrabold text-purple-900 flex items-center gap-1">
-                      <Sparkles className="w-3.5 h-3.5 text-purple-600" /> Animation Image
+                    <span className="font-extrabold text-purple-950 flex items-center gap-1.5 text-xs">
+                      <Sparkles className="w-3.5 h-3.5 text-purple-600" /> 3D / Animation Image View
                     </span>
-                    <span className="text-[10px] text-purple-700">
-                      Check this box if the image is animated (GIF, WebP animation, or dynamic badge).
+                    <span className="text-[10.5px] text-purple-700 block mt-0.5 leading-snug">
+                      Check this box if the item image should display in <strong>3D interactive perspective view</strong> with dynamic depth in the Customer App.
                     </span>
                   </label>
                 </div>

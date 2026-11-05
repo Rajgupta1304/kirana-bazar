@@ -719,7 +719,26 @@ class ApiService {
     return null;
   }
 
-  static Future<List<Product>> getProducts({String? storeId}) async {
+  static List<Product>? _cachedProducts;
+  static List<Category>? _cachedCategories;
+  static List<BannerItem>? _cachedBanners;
+
+  static List<Product> get cachedProducts => _cachedProducts ?? defaultProducts;
+  static List<Category> get cachedCategories => _cachedCategories ?? defaultCategories;
+  static List<BannerItem>? get cachedBanners => _cachedBanners;
+
+  static Future<List<Product>> getProducts({String? storeId, bool forceRefresh = false}) async {
+    if (!forceRefresh && _cachedProducts != null && _cachedProducts!.isNotEmpty) {
+      // Background revalidation
+      _fetchProductsFromNetwork(storeId: storeId).then((fresh) {
+        if (fresh.isNotEmpty) _cachedProducts = fresh;
+      }).catchError((_) {});
+      return _cachedProducts!;
+    }
+    return await _fetchProductsFromNetwork(storeId: storeId);
+  }
+
+  static Future<List<Product>> _fetchProductsFromNetwork({String? storeId}) async {
     try {
       final path = storeId != null ? '/products?storeId=$storeId' : '/products';
       final response = await _getWithFallback(path);
@@ -739,6 +758,7 @@ class ApiService {
             }
           }
           if (list.isNotEmpty) {
+            _cachedProducts = list;
             return list;
           }
         }
@@ -746,10 +766,20 @@ class ApiService {
     } catch (e) {
       print('Error fetching products: $e');
     }
-    return defaultProducts;
+    return _cachedProducts ?? defaultProducts;
   }
 
-  static Future<List<Category>> getCategories() async {
+  static Future<List<Category>> getCategories({bool forceRefresh = false}) async {
+    if (!forceRefresh && _cachedCategories != null && _cachedCategories!.isNotEmpty) {
+      _fetchCategoriesFromNetwork().then((fresh) {
+        if (fresh.isNotEmpty) _cachedCategories = fresh;
+      }).catchError((_) {});
+      return _cachedCategories!;
+    }
+    return await _fetchCategoriesFromNetwork();
+  }
+
+  static Future<List<Category>> _fetchCategoriesFromNetwork() async {
     try {
       final response = await _getWithFallback('/categories');
       if (response != null && response.statusCode == 200) {
@@ -767,13 +797,16 @@ class ApiService {
               print('Skipping malformed category item: $err');
             }
           }
-          if (list.isNotEmpty) return list;
+          if (list.isNotEmpty) {
+            _cachedCategories = list;
+            return list;
+          }
         }
       }
     } catch (e) {
       print('Error fetching categories: $e');
     }
-    return defaultCategories;
+    return _cachedCategories ?? defaultCategories;
   }
 
   static Future<User?> login(String emailOrPhone, String password) async {
@@ -827,7 +860,7 @@ class ApiService {
     return null;
   }
 
-  static Future<User?> updateUser(String userId, {String? name, String? phone, String? address}) async {
+  static Future<User?> updateUser(String userId, {String? name, String? phone, String? address, String? profileImage}) async {
     try {
       final response = await http.patch(
         Uri.parse('$baseUrl/users/$userId'),
@@ -836,6 +869,7 @@ class ApiService {
           if (name != null) 'name': name.trim(),
           if (phone != null) 'phone': phone.trim(),
           if (address != null) 'address': address.trim(),
+          if (profileImage != null) 'profileImage': profileImage.trim(),
         }),
       );
       if (response.statusCode == 200) {
@@ -912,16 +946,30 @@ class ApiService {
     }
   }
 
-  static Future<List<BannerItem>> getBanners() async {
+  static Future<List<BannerItem>> getBanners({bool forceRefresh = false}) async {
+    if (!forceRefresh && _cachedBanners != null && _cachedBanners!.isNotEmpty) {
+      _fetchBannersFromNetwork().then((fresh) {
+        if (fresh.isNotEmpty) _cachedBanners = fresh;
+      }).catchError((_) {});
+      return _cachedBanners!;
+    }
+    return await _fetchBannersFromNetwork();
+  }
+
+  static Future<List<BannerItem>> _fetchBannersFromNetwork() async {
     try {
       final response = await _getWithFallback('/banners');
       if (response != null && response.statusCode == 200) {
         final dynamic data = json.decode(response.body);
         if (data is List) {
-          return data
+          final list = data
               .map((item) => BannerItem.fromJson(item is Map<String, dynamic> ? item : Map<String, dynamic>.from(item)))
               .where((b) => b.active)
               .toList();
+          if (list.isNotEmpty) {
+            _cachedBanners = list;
+            return list;
+          }
         }
       }
     } catch (e) {

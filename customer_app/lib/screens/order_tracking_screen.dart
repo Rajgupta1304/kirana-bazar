@@ -381,11 +381,11 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> with SingleTi
 
   Widget _buildDeliveryOtpCard() {
     final otp = currentOrder.deliveryOtp.isNotEmpty ? currentOrder.deliveryOtp : '4821';
-    final formattedOtp = otp.split('').join('  ');
+    final digits = otp.split('');
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
         color: const Color(0xFFFFFBEB),
         borderRadius: BorderRadius.circular(22),
@@ -401,49 +401,62 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> with SingleTi
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.shield_outlined, color: Color(0xFFD97706), size: 18),
-              const SizedBox(width: 6),
-              const Text(
-                'CUSTOMER DELIVERY OTP',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFFB45309),
-                  letterSpacing: 1.0,
+          const FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.shield_outlined, color: Color(0xFFD97706), size: 18),
+                SizedBox(width: 6),
+                Text(
+                  'CUSTOMER DELIVERY OTP',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFFB45309),
+                    letterSpacing: 1.0,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFF59E0B), width: 2),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFFF59E0B).withOpacity(0.12),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                )
               ],
             ),
-            child: Text(
-              formattedOtp,
-              style: const TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 32,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFF0F172A),
-                letterSpacing: 6.0,
-              ),
+          ),
+          const SizedBox(height: 12),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: digits.map((digit) {
+                return Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 5),
+                  width: 52,
+                  height: 58,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFF59E0B), width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFF59E0B).withOpacity(0.12),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      )
+                    ],
+                  ),
+                  child: Text(
+                    digit,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                );
+              }).toList(),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           const Text(
             '⚠️ Share this 4-digit OTP with your rider ONLY after receiving and inspecting all items at your door.',
             textAlign: TextAlign.center,

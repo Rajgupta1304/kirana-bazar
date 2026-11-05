@@ -35,6 +35,8 @@ class AppImage extends StatelessWidget {
     return imageWidget;
   }
 
+  static final Map<String, Uint8List> _base64Cache = {};
+
   Widget _buildImage(BuildContext context) {
     final trimmed = imageUrl.trim();
 
@@ -51,6 +53,9 @@ class AppImage extends StatelessWidget {
           width: width,
           height: height,
           fit: fit,
+          gaplessPlayback: true,
+          filterQuality: FilterQuality.medium,
+          isAntiAlias: true,
           errorBuilder: (context, error, stackTrace) => _buildError(context),
         );
       }
@@ -73,6 +78,9 @@ class AppImage extends StatelessWidget {
       width: width,
       height: height,
       fit: fit,
+      gaplessPlayback: true,
+      filterQuality: FilterQuality.medium,
+      isAntiAlias: true,
       errorBuilder: (context, error, stackTrace) => _buildError(context),
       loadingBuilder: placeholder != null
           ? (context, child, loadingProgress) {
@@ -96,6 +104,9 @@ class AppImage extends StatelessWidget {
   }
 
   Uint8List? _decodeBase64(String input) {
+    if (_base64Cache.containsKey(input)) {
+      return _base64Cache[input];
+    }
     try {
       String clean = input;
       final commaIndex = clean.indexOf(',');
@@ -103,7 +114,12 @@ class AppImage extends StatelessWidget {
         clean = clean.substring(commaIndex + 1);
       }
       clean = clean.replaceAll(RegExp(r'\s+'), '');
-      return base64Decode(clean);
+      final decoded = base64Decode(clean);
+      if (_base64Cache.length > 200) {
+        _base64Cache.remove(_base64Cache.keys.first);
+      }
+      _base64Cache[input] = decoded;
+      return decoded;
     } catch (e) {
       debugPrint('AppImage base64 decode error: $e');
       return null;

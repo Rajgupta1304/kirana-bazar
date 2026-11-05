@@ -275,13 +275,13 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                           const SizedBox(height: 16),
                           // Feature / Perk Chips
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            spacing: 6,
+                            runSpacing: 6,
                             children: [
                               _buildPerkChip('⚡ 8-Min Drop'),
-                              const SizedBox(width: 8),
                               _buildPerkChip('🥦 100% Fresh'),
-                              const SizedBox(width: 8),
                               _buildPerkChip('🏷️ Dark Store Rates'),
                             ],
                           ),

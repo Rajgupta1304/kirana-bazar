@@ -719,12 +719,12 @@ export default function RiderDashboard({ orders, onUpdateOrderStatus, currentUse
                   value={otpInput}
                   onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ''))}
                   placeholder="• • • •"
-                  className="w-full text-center text-3xl font-mono tracking-[0.5em] font-black py-3 px-4 bg-slate-950 border-2 border-slate-700 focus:border-amber-400 focus:outline-none rounded-2xl text-white transition"
+                  className="w-full text-center text-2xl sm:text-3xl font-mono tracking-[0.3em] sm:tracking-[0.5em] font-black py-2.5 sm:py-3 px-2 sm:px-4 bg-slate-950 border-2 border-slate-700 focus:border-amber-400 focus:outline-none rounded-2xl text-white transition"
                   autoFocus
                 />
               </div>
 
-              <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
+              <div className="flex flex-wrap items-center justify-between gap-1 text-xs text-slate-400 pt-1">
                 <span>Customer didn't get OTP?</span>
                 <button
                   type="button"

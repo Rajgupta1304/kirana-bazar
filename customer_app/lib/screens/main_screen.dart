@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../cart_provider.dart';
 import 'home_screen.dart';
@@ -8,8 +9,15 @@ import 'orders_screen.dart';
 import 'profile_screen.dart';
 import '../theme.dart';
 
-class MainScreen extends StatelessWidget {
+class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
+
+  @override
+  State<MainScreen> createState() => _MainScreenState();
+}
+
+class _MainScreenState extends State<MainScreen> {
+  DateTime? _lastBackPressTime;
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +25,44 @@ class MainScreen extends StatelessWidget {
     final cartItemsCount = cart.totalItems;
     final currentIndex = cart.selectedTabIndex;
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+
+        // 1. If not on Home tab, follow navigation history back to Home
+        if (cart.selectedTabIndex != 0) {
+          final popped = cart.popTab();
+          if (popped) return;
+        }
+
+        // 2. On root/Home tab: Double back press within 2 seconds to exit
+        final now = DateTime.now();
+        if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+          _lastBackPressTime = now;
+          ScaffoldMessenger.of(context).removeCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.white, size: 18),
+                  SizedBox(width: 8),
+                  Text('Press back again to exit', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                ],
+              ),
+              backgroundColor: const Color(0xFF1E293B),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            ),
+          );
+        } else {
+          // Double back confirmed within 2 seconds -> Exit app cleanly
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
       body: IndexedStack(
         index: currentIndex,
         children: const [
@@ -163,6 +208,7 @@ class MainScreen extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }

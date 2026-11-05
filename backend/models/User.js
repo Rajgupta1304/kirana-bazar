@@ -10,6 +10,7 @@ const userSchema = new mongoose.Schema({
   status: { type: String, enum: ['Active', 'Blocked', 'Available', 'On Delivery', 'Offline'], default: 'Active' },
   shopName: { type: String, default: '' },
   address: { type: String, default: 'B-12, Sector 14, Metro Heights' },
+  profileImage: { type: String, default: '' },
   vehicle: { type: String, default: 'EV Scooter' },
   rating: { type: Number, default: 4.9 },
   totalDeliveries: { type: Number, default: 0 },

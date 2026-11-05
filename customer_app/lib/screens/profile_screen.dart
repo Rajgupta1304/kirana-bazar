@@ -1,9 +1,12 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
 import '../cart_provider.dart';
 import '../api_service.dart';
 import '../theme.dart';
 import '../models.dart';
+import '../widgets/app_image.dart';
 import 'auth_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -14,6 +17,239 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+
+  Future<void> _pickAndUploadProfileImage(User user) async {
+    final picker = ImagePicker();
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Update Profile Picture', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: Color(0xFF0C831F)),
+                title: const Text('Take Photo with Camera'),
+                onTap: () => Navigator.pop(ctx, ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: Color(0xFF0C8CE9)),
+                title: const Text('Choose from Gallery'),
+                onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (source == null) return;
+    try {
+      final picked = await picker.pickImage(source: source, maxWidth: 512, maxHeight: 512, imageQuality: 80);
+      if (picked == null) return;
+      final bytes = await picked.readAsBytes();
+      final base64Str = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Updating profile image...'), duration: Duration(seconds: 1)),
+        );
+      }
+      final updated = await ApiService.updateUser(user.id, profileImage: base64Str);
+      if (mounted) {
+        if (updated != null) {
+          context.read<CartProvider>().updateUser(updated);
+        } else {
+          context.read<CartProvider>().updateProfileImage(base64Str);
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile picture updated successfully!'), backgroundColor: AppTheme.accent),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update picture: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  void _showMapLocationSelector(User user) {
+    String selectedLocation = user.address.isNotEmpty ? user.address : 'Sector 14, Main Market, Gurugram';
+    final customAddrCtrl = TextEditingController(text: selectedLocation);
+    bool isSaving = false;
+
+    final presetLocations = [
+      {'title': 'Current GPS Location', 'desc': 'Main Market, Sector 14, Gurugram - 122001', 'icon': Icons.my_location, 'color': const Color(0xFF0C8CE9)},
+      {'title': 'Home', 'desc': 'Flat 402, Metro Heights, Sector 104, Gurugram', 'icon': Icons.home, 'color': const Color(0xFF0C831F)},
+      {'title': 'Work / Office', 'desc': 'Tower B, DLF Cyber City, Phase 2, Gurugram', 'icon': Icons.business, 'color': const Color(0xFF7C3AED)},
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => Container(
+          padding: EdgeInsets.only(
+            top: 20,
+            left: 20,
+            right: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.map_outlined, color: Color(0xFF0C8CE9), size: 24),
+                      SizedBox(width: 8),
+                      Text('Select on Map / GPS', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+                    ],
+                  ),
+                  IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Visual Map Simulator Card
+              Container(
+                height: 120,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFBFDBFE)),
+                ),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 8, offset: const Offset(0, 3)),
+                      ],
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.location_pin, color: Color(0xFFDC2626), size: 20),
+                        SizedBox(width: 6),
+                        Text('Selected GPS Pin Location', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: Color(0xFF0F172A))),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 14),
+              const Text('QUICK LOCATIONS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF64748B), letterSpacing: 0.5)),
+              const SizedBox(height: 8),
+
+              ...presetLocations.map((item) {
+                final isSelected = selectedLocation == item['desc'];
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isSelected ? const Color(0xFF0C8CE9) : Colors.grey.shade200,
+                      width: isSelected ? 1.5 : 1,
+                    ),
+                  ),
+                  child: ListTile(
+                    dense: true,
+                    onTap: () {
+                      setModalState(() {
+                        selectedLocation = item['desc'] as String;
+                        customAddrCtrl.text = selectedLocation;
+                      });
+                    },
+                    leading: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: (item['color'] as Color).withOpacity(0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(item['icon'] as IconData, color: item['color'] as Color, size: 18),
+                    ),
+                    title: Text(item['title'] as String, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    subtitle: Text(item['desc'] as String, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                    trailing: isSelected ? const Icon(Icons.check_circle, color: Color(0xFF0C8CE9), size: 20) : null,
+                  ),
+                );
+              }),
+
+              const SizedBox(height: 8),
+              TextField(
+                controller: customAddrCtrl,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'Selected Detailed Address',
+                  prefixIcon: Icon(Icons.edit_location_alt_outlined),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: isSaving ? null : () async {
+                    final addr = customAddrCtrl.text.trim();
+                    if (addr.isEmpty) return;
+                    setModalState(() => isSaving = true);
+                    final updated = await ApiService.updateUser(user.id, address: addr);
+                    if (mounted) {
+                      if (updated != null) {
+                        context.read<CartProvider>().updateUser(updated);
+                      } else {
+                        context.read<CartProvider>().updateUser(
+                          User(
+                            id: user.id,
+                            name: user.name,
+                            phone: user.phone,
+                            email: user.email,
+                            address: addr,
+                            role: user.role,
+                            profileImage: user.profileImage,
+                          ),
+                        );
+                      }
+                      context.read<CartProvider>().setDeliveryAddress(addr);
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Address saved from Map!'), backgroundColor: AppTheme.accent),
+                      );
+                    }
+                  },
+                  child: isSaving
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Save & Confirm Location', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   void _showEditProfileDialog(User user) {
     final editNameCtrl = TextEditingController(text: user.name);
@@ -134,7 +370,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _showMapLocationSelector(user);
+                  },
+                  icon: const Icon(Icons.my_location, color: Color(0xFF0C8CE9), size: 18),
+                  label: const Text('📍 Select Location on Map / Use GPS', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0C8CE9))),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF0C8CE9), width: 1.5),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
               TextField(
                 controller: addrCtrl,
                 maxLines: 3,
@@ -285,23 +538,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Container(
-                        width: 72,
-                        height: 72,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(colors: [Color(0xFFFFD700), Color(0xFFF59E0B)]),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 3),
-                          boxShadow: [
-                            BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 12, offset: const Offset(0, 4))
-                          ],
-                        ),
-                        child: Center(
-                          child: Text(
-                            avatarLetter,
-                            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                      // Profile Image with Camera badge
+                      Stack(
+                        children: [
+                          GestureDetector(
+                            onTap: () => _pickAndUploadProfileImage(user),
+                            child: Container(
+                              width: 76,
+                              height: 76,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(colors: [Color(0xFFFFD700), Color(0xFFF59E0B)]),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 3),
+                                boxShadow: [
+                                  BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 14, offset: const Offset(0, 4))
+                                ],
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: user.profileImage.isNotEmpty
+                                  ? AppImage(
+                                      imageUrl: user.profileImage,
+                                      width: 76,
+                                      height: 76,
+                                      fit: BoxFit.cover,
+                                      errorWidget: Center(
+                                        child: Text(
+                                          avatarLetter,
+                                          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                                        ),
+                                      ),
+                                    )
+                                  : Center(
+                                      child: Text(
+                                        avatarLetter,
+                                        style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                                      ),
+                                    ),
+                            ),
                           ),
-                        ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: GestureDetector(
+                              onTap: () => _pickAndUploadProfileImage(user),
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0C8CE9),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 2),
+                                  boxShadow: [
+                                    BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4),
+                                  ],
+                                ),
+                                child: const Icon(Icons.camera_alt, color: Colors.white, size: 14),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 10),
                       Text(

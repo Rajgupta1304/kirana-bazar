@@ -61,6 +61,23 @@ class Product {
       isAnimation: json['isAnimation'] == true || json['isAnimation']?.toString() == 'true',
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'categoryId': categoryId,
+      'categoryName': categoryName,
+      'unit': unit,
+      'price': price,
+      'mrp': mrp,
+      'image': image,
+      'stock': stock,
+      'storeId': storeId,
+      'inStore': inStore,
+      'isAnimation': isAnimation,
+    };
+  }
 }
 
 class Category {
@@ -250,6 +267,7 @@ class User {
   final String email;
   final String address;
   final String role;
+  final String profileImage;
 
   User({
     required this.id,
@@ -258,6 +276,7 @@ class User {
     this.email = '',
     required this.address,
     this.role = 'Customer',
+    this.profileImage = '',
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -281,6 +300,7 @@ class User {
       email: json['email']?.toString() ?? '',
       address: parsedAddress.isNotEmpty ? parsedAddress : 'B-12, Sector 14, Metro Heights',
       role: json['role']?.toString() ?? 'Customer',
+      profileImage: json['profileImage']?.toString() ?? json['avatar']?.toString() ?? '',
     );
   }
 
@@ -292,6 +312,7 @@ class User {
       'email': email,
       'address': address,
       'role': role,
+      'profileImage': profileImage,
     };
   }
 }

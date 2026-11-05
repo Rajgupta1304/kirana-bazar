@@ -460,7 +460,16 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                                     shape: BoxShape.circle,
                                     border: Border.all(color: Colors.white38, width: 1.5),
                                   ),
-                                  child: const Icon(Icons.person, color: Colors.white, size: 22),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: cart.currentUser != null && cart.currentUser!.profileImage.isNotEmpty
+                                      ? AppImage(
+                                          imageUrl: cart.currentUser!.profileImage,
+                                          width: 38,
+                                          height: 38,
+                                          fit: BoxFit.cover,
+                                          errorWidget: const Icon(Icons.person, color: Colors.white, size: 22),
+                                        )
+                                      : const Icon(Icons.person, color: Colors.white, size: 22),
                                 ),
                               ),
                             ],
@@ -646,6 +655,8 @@ class _CategoryGridCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cart = context.watch<CartProvider>();
+    final isSelected = cart.selectedCategory == category.id;
     final cardBg = _getCardColor(category.id);
 
     return GestureDetector(
@@ -661,28 +672,50 @@ class _CategoryGridCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: cardBg,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.black.withOpacity(0.04), width: 1),
+                border: Border.all(
+                  color: isSelected ? AppTheme.blinkitGreen : Colors.black.withOpacity(0.04),
+                  width: isSelected ? 2.5 : 1,
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.02),
-                    blurRadius: 6,
+                    color: isSelected ? AppTheme.blinkitGreen.withOpacity(0.2) : Colors.black.withOpacity(0.02),
+                    blurRadius: isSelected ? 8 : 6,
                     offset: const Offset(0, 2),
                   )
                 ],
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: category.image.isNotEmpty
-                    ? AppImage(
-                        imageUrl: category.image,
-                        fit: BoxFit.cover,
-                        errorWidget: Center(
-                          child: Text(category.icon, style: const TextStyle(fontSize: 32)),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: category.image.isNotEmpty
+                          ? AppImage(
+                              imageUrl: category.image,
+                              fit: BoxFit.cover,
+                              errorWidget: Center(
+                                child: Text(category.icon, style: const TextStyle(fontSize: 32)),
+                              ),
+                            )
+                          : Center(
+                              child: Text(category.icon, style: const TextStyle(fontSize: 32)),
+                            ),
+                    ),
+                  ),
+                  if (isSelected)
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(
+                          color: AppTheme.blinkitGreen,
+                          shape: BoxShape.circle,
                         ),
-                      )
-                    : Center(
-                        child: Text(category.icon, style: const TextStyle(fontSize: 32)),
+                        child: const Icon(Icons.check, size: 10, color: Colors.white),
                       ),
+                    ),
+                ],
               ),
             ),
           ),
@@ -695,10 +728,10 @@ class _CategoryGridCard extends StatelessWidget {
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF1E293B),
+                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
+                color: isSelected ? AppTheme.blinkitGreen : const Color(0xFF1E293B),
                 height: 1.15,
               ),
             ),
