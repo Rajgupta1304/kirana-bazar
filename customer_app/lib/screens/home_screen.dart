@@ -101,8 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final cachedBns = ApiService.cachedBanners;
 
     if (cachedProds.isNotEmpty && products.isEmpty) {
-      final inStoreProds = cachedProds.where((p) => p.inStore).toList();
-      products = inStoreProds.isNotEmpty ? inStoreProds : cachedProds;
+      products = cachedProds;
     }
     if (cachedCats.isNotEmpty && categories.isEmpty) {
       categories = cachedCats;
@@ -132,13 +131,9 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         cart.setCategories(cats);
         setState(() {
-          // Display products based on customer's location/branch
-          final inStoreProds = prods.where((p) => p.inStore).toList();
-          products = inStoreProds.isNotEmpty ? inStoreProds : prods;
-          if (products.isEmpty) {
-            products = ApiService.defaultProducts;
-          }
-          categories = cats.isNotEmpty ? cats : ApiService.defaultCategories;
+          // Display actual live products from backend for this location/branch
+          products = prods;
+          categories = cats;
           banners = bns;
           stores = strs;
           isLoading = false;
@@ -148,8 +143,6 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (_) {
       if (mounted) {
         setState(() {
-          if (products.isEmpty) products = ApiService.defaultProducts;
-          if (categories.isEmpty) categories = ApiService.defaultCategories;
           isLoading = false;
         });
       }
@@ -755,6 +748,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
     final selectedCategory = cart.selectedCategory;
+    final displayCategories = cart.categories.isNotEmpty ? cart.categories : categories;
 
     var filteredProducts = products;
     if (searchQuery.trim().isNotEmpty) {
@@ -1112,63 +1106,49 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
 
-                      // Horizontal "Frequently bought" Cards (Compact Carousel)
+                      // Horizontal "Frequently bought" Cards (Dynamic based on real categories & items)
                       SliverToBoxAdapter(
                         child: SizedBox(
                           height: 112,
-                          child: ListView(
-                            scrollDirection: Axis.horizontal,
-                            padding: const EdgeInsets.symmetric(horizontal: 14),
-                            children: [
-                              _FrequentCard(
-                                label: 'Favourites',
-                                extraCount: '+18 more',
-                                img1: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=150&q=80',
-                                img2: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=150&q=80',
-                                bgColor: const Color(0xFFEFF6FF),
-                                onTap: () => cart.setSelectedCategory('cat_1'),
-                              ),
-                              _FrequentCard(
-                                label: 'Oil, Ghee & Masala',
-                                extraCount: '+16 more',
-                                img1: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=150&q=80',
-                                img2: 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=150&q=80',
-                                bgColor: const Color(0xFFEBFBF5),
-                                onTap: () => cart.setSelectedCategory('cat_8'),
-                              ),
-                              _FrequentCard(
-                                label: 'Rice, Atta & more',
-                                extraCount: '+9 more',
-                                img1: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=150&q=80',
-                                img2: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=150&q=80',
-                                bgColor: const Color(0xFFFEFCE8),
-                                onTap: () => cart.setSelectedCategory('cat_7'),
-                              ),
-                              _FrequentCard(
-                                label: 'Rajma, Chole & Dal',
-                                extraCount: '+5 more',
-                                img1: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=150&q=80',
-                                img2: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=150&q=80',
-                                bgColor: const Color(0xFFEBFBF5),
-                                onTap: () => cart.setSelectedCategory('cat_7'),
-                              ),
-                              _FrequentCard(
-                                label: 'Tea & Coffee',
-                                extraCount: '+4 more',
-                                img1: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=150&q=80',
-                                img2: 'https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=150&q=80',
-                                bgColor: const Color(0xFFFEFCE8),
-                                onTap: () => cart.setSelectedCategory('cat_14'),
-                              ),
-                              _FrequentCard(
-                                label: 'Dry Fruits & Cereals',
-                                extraCount: '+6 more',
-                                img1: 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=150&q=80',
-                                img2: 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?auto=format&fit=crop&w=150&q=80',
-                                bgColor: const Color(0xFFEFF6FF),
-                                onTap: () => cart.setSelectedCategory('cat_10'),
-                              ),
-                            ],
+                          child: Builder(
+                            builder: (context) {
+                              final cardColors = [
+                                const Color(0xFFEFF6FF),
+                                const Color(0xFFEBFBF5),
+                                const Color(0xFFFEFCE8),
+                                const Color(0xFFFFF1F2),
+                                const Color(0xFFF5F3FF),
+                              ];
+                              final catCards = <Widget>[];
+                              int colorIdx = 0;
+                              for (final cat in displayCategories) {
+                                final catProds = products.where((p) => p.categoryId == cat.id).toList();
+                                if (catProds.isEmpty) continue;
+                                final img1 = catProds[0].image.isNotEmpty ? catProds[0].image : cat.image;
+                                final img2 = catProds.length > 1 && catProds[1].image.isNotEmpty
+                                    ? catProds[1].image
+                                    : (cat.image.isNotEmpty ? cat.image : img1);
+                                final bg = cardColors[colorIdx % cardColors.length];
+                                colorIdx++;
+
+                                catCards.add(
+                                  _FrequentCard(
+                                    label: cat.name,
+                                    extraCount: '+${catProds.length} items',
+                                    img1: img1,
+                                    img2: img2,
+                                    bgColor: bg,
+                                    onTap: () => cart.setSelectedCategory(cat.id),
+                                  ),
+                                );
+                              }
+                              if (catCards.isEmpty) return const SizedBox.shrink();
+                              return ListView(
+                                scrollDirection: Axis.horizontal,
+                                padding: const EdgeInsets.symmetric(horizontal: 14),
+                                children: catCards,
+                              );
+                            },
                           ),
                         ),
                       ),

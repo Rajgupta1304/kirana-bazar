@@ -37,14 +37,14 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       final cats = await ApiService.getCategories();
       if (mounted) {
         setState(() {
-          categories = cats.isNotEmpty ? cats : ApiService.defaultCategories;
+          categories = cats;
           isLoading = false;
         });
       }
     } catch (_) {
       if (mounted) {
         setState(() {
-          categories = ApiService.defaultCategories;
+          categories = [];
           isLoading = false;
         });
       }

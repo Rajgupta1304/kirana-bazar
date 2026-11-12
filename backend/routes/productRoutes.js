@@ -240,7 +240,7 @@ router.get('/', async (req, res) => {
             isAnimation: Boolean(prod.isAnimation),
             visibleBranches: prod.visibleBranches || ['all'],
             storeId: targetStoreId,
-            inStore: !!inv || !!approvedReq,
+            inStore: !!inv || !!approvedReq || (prod.visibleBranches && (prod.visibleBranches.includes('all') || possibleStoreIds.some(s => prod.visibleBranches.includes(s)))),
             rating: prod.rating || 4.8,
             deliveryTime: prod.deliveryTime || '8 mins',
             image: prod.image,
@@ -281,6 +281,7 @@ router.get('/', async (req, res) => {
 
         return res.json(merged);
       }
+      return res.json([]);
     }
 
     res.json(memoryProducts);
